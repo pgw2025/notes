@@ -44,10 +44,11 @@ export const useAuthStore = defineStore('auth', {
       return res.avatarUrl
     },
 
-    async updateProfile({ displayName, avatarUrl }) {
+    async updateProfile({ displayName, avatarUrl, defaultNoteColor }) {
       const payload = {}
       if (displayName !== undefined) payload.displayName = displayName
       if (avatarUrl !== undefined) payload.avatarUrl = avatarUrl
+      if (defaultNoteColor !== undefined) payload.defaultNoteColor = defaultNoteColor
       const updated = await http.put('/auth/profile', payload)
       this.user = updated
       return updated

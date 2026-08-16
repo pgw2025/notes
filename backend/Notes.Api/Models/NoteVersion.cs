@@ -18,6 +18,9 @@ public class NoteVersion
 
     public int? CategoryId { get; set; }
 
+    /// <summary>保存时的笔记背景色快照</summary>
+    public string? BackgroundColor { get; set; }
+
     /// <summary>保存时的标签ID列表，用逗号分隔存字符串</summary>
     [MaxLength(500)]
     public string? TagIdsSnapshot { get; set; }

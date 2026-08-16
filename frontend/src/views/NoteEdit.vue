@@ -6,19 +6,23 @@
       @click-left="onBack"
     >
       <template #right>
-        <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
+        <div class="nav-actions">
+          <van-icon name="edit" size="20" class="color-icon" @click="showColorPicker = true" />
+          <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
+        </div>
       </template>
     </van-nav-bar>
 
-    <div class="editor">
+    <div class="editor" :style="editorStyle">
       <van-field
         v-model="form.title"
         placeholder="标题"
         class="title-field"
+        :style="{ background: 'transparent' }"
         maxlength="200"
       />
 
-      <div class="meta-row">
+      <div class="meta-row" :style="{ borderColor: metaBorderColor }">
         <van-cell
           title="分类"
           is-link
@@ -41,7 +45,7 @@
       </div>
 
       <div class="editor-body">
-        <div v-show="isDesktop || mode === 'edit'" class="edit-area">
+        <div v-show="isDesktop || mode === 'edit'" class="edit-area" :style="areaStyle">
           <div class="toolbar">
             <van-button size="small" plain @click="insert('# ', '', '标题')">H</van-button>
             <van-button size="small" plain @click="insert('**', '**', '粗体')"><b>B</b></van-button>
@@ -66,9 +70,9 @@
           ></textarea>
         </div>
 
-        <div v-show="isDesktop || mode === 'preview'" class="preview-area">
-          <div v-if="isDesktop" class="preview-label">预览</div>
-          <markdown-body :content="form.content || '*暂无内容*'" />
+        <div v-show="isDesktop || mode === 'preview'" class="preview-area" :style="areaStyle">
+          <div v-if="isDesktop" class="preview-label" :style="{ color: subTextColor, borderColor: metaBorderColor }">预览</div>
+          <markdown-body :content="form.content || '*暂无内容*'" :style="{ color: textColor }" />
         </div>
       </div>
     </div>
@@ -113,6 +117,12 @@
         </div>
       </div>
     </van-popup>
+
+    <!-- 颜色选择 -->
+    <ColorPicker
+      v-model:show="showColorPicker"
+      v-model="form.backgroundColor"
+    />
   </div>
 </template>
 
@@ -122,11 +132,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import http from '../api/http'
 import MarkdownBody from '../components/MarkdownBody.vue'
+import ColorPicker from '../components/ColorPicker.vue'
 import { useResponsive } from '../composables/useResponsive'
+import { useAuthStore } from '../stores/auth'
+import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 
 const route = useRoute()
 const router = useRouter()
 const { isDesktop } = useResponsive()
+const auth = useAuthStore()
 
 const noteId = computed(() => route.params.id)
 const isEdit = computed(() => !!noteId.value)
@@ -135,7 +149,8 @@ const form = reactive({
   title: '',
   content: '',
   categoryId: null,
-  tagIds: []
+  tagIds: [],
+  backgroundColor: null
 })
 const categories = ref([])
 const tags = ref([])
@@ -143,6 +158,7 @@ const mode = ref('edit')
 const saving = ref(false)
 const showCategoryPicker = ref(false)
 const showTagPicker = ref(false)
+const showColorPicker = ref(false)
 const textareaRef = ref(null)
 const fileInput = ref(null)
 
@@ -163,10 +179,33 @@ const selectedTagNames = computed(() => {
   return names.join('、')
 })
 
+// 笔记的有效背景色：自身色 → 用户默认色 → 系统白色
+const effectiveBg = computed(() => resolveNoteColor(form.backgroundColor, auth.user?.defaultNoteColor))
+const textColor = computed(() => getContrastColor(effectiveBg.value))
+const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : '#969799')
+const metaBorderColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.15)' : '#ebedf0')
+
+// 整个编辑器容器的背景色 + 文字色
+const editorStyle = computed(() => ({
+  background: effectiveBg.value,
+  color: textColor.value
+}))
+
+// 编辑区/预览区的背景色（透明，让父容器的背景色透出）
+const areaStyle = computed(() => ({
+  background: 'transparent',
+  color: textColor.value
+}))
+
 async function loadData() {
   const [cats, tgs] = await Promise.all([http.get('/categories'), http.get('/tags')])
   categories.value = cats
   tags.value = tgs
+
+  // 确保用户信息已加载（含 defaultNoteColor）
+  if (!auth.user) {
+    try { await auth.fetchUser() } catch { /* ignore */ }
+  }
 
   if (isEdit.value) {
     const note = await http.get(`/notes/${noteId.value}`)
@@ -177,6 +216,8 @@ async function loadData() {
     form.tagIds = (note.tags || [])
       .map((name) => tags.value.find((t) => t.name === name)?.id)
       .filter(Boolean)
+    // 笔记自身色（API 返回的是 effective color，直接用）
+    form.backgroundColor = note.backgroundColor || null
   }
 }
 
@@ -241,7 +282,8 @@ async function onSave() {
       title: form.title.trim(),
       content: form.content,
       categoryId: form.categoryId,
-      tagIds: form.tagIds
+      tagIds: form.tagIds,
+      backgroundColor: form.backgroundColor || ''  // null/空串表示清除为跟随默认色
     }
     if (isEdit.value) {
       await http.put(`/notes/${noteId.value}`, payload)
@@ -281,6 +323,14 @@ onMounted(loadData)
   display: flex;
   flex-direction: column;
 }
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.color-icon {
+  cursor: pointer;
+}
 .editor {
   flex: 1;
   display: flex;
@@ -296,14 +346,14 @@ onMounted(loadData)
 }
 .toolbar-wrap {
   border-top: 1px solid #ebedf0;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.5);
 }
 .toolbar {
   display: flex;
   gap: 6px;
   padding: 8px 12px;
   overflow-x: auto;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.3);
   border-bottom: 1px solid #ebedf0;
 }
 .toolbar .van-button {
@@ -320,7 +370,12 @@ onMounted(loadData)
   line-height: 1.7;
   min-height: 50vh;
   font-family: inherit;
-  background: #fff;
+  background: transparent;
+  color: inherit;
+}
+.content-area::placeholder {
+  color: inherit;
+  opacity: 0.5;
 }
 .editor-body {
   flex: 1;
@@ -333,11 +388,9 @@ onMounted(loadData)
   flex-direction: column;
   flex: 1;
   overflow: hidden;
-  background: #fff;
 }
 .preview-area {
   padding: 14px 16px;
-  background: #fff;
   min-height: 50vh;
 }
 .preview-label {
@@ -367,7 +420,6 @@ onMounted(loadData)
     max-width: 1200px;
     margin: 0 auto;
     min-height: calc(100vh - 40px);
-    background: #fff;
     border-left: 1px solid #ebedf0;
     border-right: 1px solid #ebedf0;
   }

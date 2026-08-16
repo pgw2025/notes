@@ -17,21 +17,28 @@
       </div>
 
       <van-cell-group v-else inset class="notes-grid" style="margin-top: 8px">
-        <van-swipe-cell v-for="n in notes" :key="n.id" class="notes-grid-item">
-          <div class="note-card" @click="goDetail(n.id)">
+        <van-swipe-cell
+          v-for="n in notes"
+          :key="n.id"
+          class="notes-grid-item"
+        >
+          <div
+            class="note-card"
+            :style="cardStyle(n)"
+            @click="goDetail(n.id)"
+          >
             <div class="note-title">{{ n.title || '无标题' }}</div>
             <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
             <div class="note-meta">
-              <van-tag v-if="n.categoryName" plain type="primary" size="medium">{{ n.categoryName }}</van-tag>
+              <van-tag v-if="n.categoryName" plain type="primary" size="medium" :style="tagStyle(n)"> {{ n.categoryName }}</van-tag>
               <van-tag
                 v-for="t in n.tags"
                 :key="t"
                 plain
                 size="medium"
-                color="#969799"
-                text-color="#969799"
+                :style="tagStyle(n)"
               >{{ t }}</van-tag>
-              <span class="note-time">{{ formatTime(n.updatedAt) }}</span>
+              <span class="note-time" :style="{ color: timeColor(n) }">{{ formatTime(n.updatedAt) }}</span>
             </div>
           </div>
           <template #right>
@@ -49,17 +56,49 @@ import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
 import { formatTime } from '../utils/format'
+import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
+import { useAuthStore } from '../stores/auth'
 
 defineOptions({ name: 'NotesList' })
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const notes = ref([])
 const categories = ref([])
 const activeTab = ref(0)
 const refreshing = ref(false)
 const loading = ref(false)
+
+// 笔记卡片样式：背景色 + 文字色
+function cardStyle(n) {
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
+  const color = getContrastColor(bg)
+  return {
+    background: bg,
+    color
+  }
+}
+
+// Tag 样式：浅色背景 → 默认蓝/灰；深色背景 → 半透明白底白字
+function tagStyle(n) {
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
+  if (isDarkColor(bg)) {
+    return {
+      background: 'rgba(255, 255, 255, 0.2)',
+      color: '#FFFFFF',
+      borderColor: 'rgba(255, 255, 255, 0.3)'
+    }
+  }
+  return {} // 浅色背景用 Vant 默认样式
+}
+
+// 时间文字色：深色背景 → 半透明白；浅色背景 → 浅灰
+function timeColor(n) {
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
+  return isDarkColor(bg) ? 'rgba(255, 255, 255, 0.6)' : '#c8c9cc'
+}
 
 async function loadCategories() {
   try {
@@ -107,6 +146,10 @@ async function onDelete(note) {
 let initialized = false
 
 onMounted(async () => {
+  // 确保用户信息已加载（含 defaultNoteColor），用于卡片背景色 fallback
+  if (!auth.user) {
+    try { await auth.fetchUser() } catch { /* 未登录时忽略 */ }
+  }
   await loadCategories()
   const qid = Number(route.query.categoryId)
   if (qid) {
@@ -140,17 +183,18 @@ onActivated(() => {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 6px;
-  color: #323233;
+  /* color 由内联样式控制，浅色背景默认深色 */
+  color: inherit;
 }
 .note-preview {
   font-size: 13px;
-  color: #969799;
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin-bottom: 8px;
+  opacity: 0.7; /* 跟随父级文字色，稍微弱化 */
 }
 .note-meta {
   display: flex;
@@ -161,18 +205,18 @@ onActivated(() => {
 .note-time {
   margin-left: auto;
   font-size: 12px;
-  color: #c8c9cc;
+  /* color 由内联样式控制 */
 }
 .del-btn {
   height: 100%;
 }
 
-/* 移动端：给每条笔记之间加间距（van-cell-group 默认子元素紧贴） */
+/* 移动端：给每条笔记之间加间距，间距透明（让卡片色连成一片） */
 .notes-grid-item {
   margin-bottom: 8px;
-  background: #fff;
   border-radius: 8px;
   overflow: hidden;
+  /* 不设 background，让 .note-card 的内联背景色直接显示 */
 }
 .notes-grid-item:last-child {
   margin-bottom: 0;
@@ -195,9 +239,8 @@ onActivated(() => {
     overflow: visible;
   }
   .notes-grid-item {
-    margin-bottom: 0; /* 桌面端用 grid gap 控制间距，重置移动端的 margin */
-    background: #fff;
-    border: 1px solid #ebedf0;
+    margin-bottom: 0; /* 桌面端用 grid gap 控制间距 */
+    border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 8px;
     overflow: hidden;
     transition: box-shadow 0.2s, transform 0.2s;

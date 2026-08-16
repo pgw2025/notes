@@ -1,37 +1,36 @@
 <template>
-  <div class="page">
+  <div class="page" :style="pageStyle">
     <van-nav-bar title="笔记详情" left-arrow @click-left="$router.back()">
       <template #right>
         <div class="nav-right">
-          <van-icon name="clock-o" size="20" @click="openVersions" />
-          <van-icon name="edit" size="20" @click="$router.push(`/notes/${note.id}/edit`)" />
+          <van-icon name="clock-o" size="20" :style="{ color: navIconColor }" @click="openVersions" />
+          <van-icon name="edit" size="20" :style="{ color: navIconColor }" @click="$router.push(`/notes/${note.id}/edit`)" />
         </div>
       </template>
     </van-nav-bar>
 
-    <div v-if="note" class="detail">
+    <div v-if="note" class="detail" :style="{ color: textColor }">
       <h1 class="detail-title">{{ note.title || '无标题' }}</h1>
 
       <div class="detail-meta">
-        <van-tag v-if="note.categoryName" type="primary" size="medium">{{ note.categoryName }}</van-tag>
+        <van-tag v-if="note.categoryName" type="primary" size="medium" :style="tagStyle">{{ note.categoryName }}</van-tag>
         <van-tag
           v-for="t in note.tags"
           :key="t"
           plain
           size="medium"
-          color="#969799"
-          text-color="#969799"
+          :style="tagStyle"
         >{{ t }}</van-tag>
       </div>
 
-      <div class="detail-time">
+      <div class="detail-time" :style="{ color: subTextColor }">
         创建于 {{ formatDateTime(note.createdAt) }} · 更新于 {{ formatDateTime(note.updatedAt) }}
       </div>
 
-      <markdown-body :content="note.content" />
+      <markdown-body :content="note.content" :style="{ color: textColor }" />
 
       <div v-if="note.attachments?.length" class="attachments">
-        <div class="section-title">附件</div>
+        <div class="section-title" :style="{ color: subTextColor }">附件</div>
         <van-cell-group inset>
           <van-cell
             v-for="a in note.attachments"
@@ -154,14 +153,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import http from '../api/http'
 import MarkdownBody from '../components/MarkdownBody.vue'
 import { formatDateTime } from '../utils/format'
+import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
+const auth = useAuthStore()
 const note = ref(null)
 
 const showVersionsPopup = ref(false)
@@ -172,8 +174,37 @@ const versions = ref([])
 const activeVersion = ref(null)
 const restoringId = ref(null)
 
+// 笔记有效背景色（笔记色 → 用户默认色 → 系统白）
+const effectiveBg = computed(() =>
+  note.value ? resolveNoteColor(note.value.backgroundColor, auth.user?.defaultNoteColor) : '#FFFFFF'
+)
+const textColor = computed(() => getContrastColor(effectiveBg.value))
+const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : '#969799')
+const navIconColor = computed(() => isDarkColor(effectiveBg.value) ? '#FFFFFF' : '#323233')
+
+// 整页背景色
+const pageStyle = computed(() => ({
+  background: effectiveBg.value
+}))
+
+// Tag 样式：深色背景 → 半透明白底白字
+const tagStyle = computed(() => {
+  if (isDarkColor(effectiveBg.value)) {
+    return {
+      background: 'rgba(255, 255, 255, 0.2)',
+      color: '#FFFFFF',
+      borderColor: 'rgba(255, 255, 255, 0.3)'
+    }
+  }
+  return {}
+})
+
 async function loadNote() {
   try {
+    // 确保用户信息已加载（含 defaultNoteColor）
+    if (!auth.user) {
+      try { await auth.fetchUser() } catch { /* ignore */ }
+    }
     note.value = await http.get(`/notes/${route.params.id}`)
   } catch {
     showToast('加载失败')
@@ -273,6 +304,7 @@ onMounted(loadNote)
   font-weight: 700;
   margin: 0 0 12px;
   line-height: 1.4;
+  color: inherit; /* 跟随父级文字色 */
 }
 .detail-meta {
   display: flex;
@@ -282,7 +314,6 @@ onMounted(loadNote)
 }
 .detail-time {
   font-size: 12px;
-  color: #c8c9cc;
   margin-bottom: 20px;
 }
 .section-title {

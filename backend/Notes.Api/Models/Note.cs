@@ -23,6 +23,9 @@ public class Note
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>笔记背景色（HEX 格式如 "#FFF9C4"）。null 表示用用户默认色或系统白色。</summary>
+    public string? BackgroundColor { get; set; }
+
     public ICollection<NoteTag> NoteTags { get; set; } = new List<NoteTag>();
 
     public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();

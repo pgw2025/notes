@@ -11,7 +11,8 @@ public record NoteDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<string> Tags,
-    List<AttachmentDto> Attachments);
+    List<AttachmentDto> Attachments,
+    string? BackgroundColor);
 
 public record NoteListItemDto(
     int Id,
@@ -20,8 +21,9 @@ public record NoteListItemDto(
     int? CategoryId,
     string? CategoryName,
     DateTime UpdatedAt,
-    List<string> Tags);
+    List<string> Tags,
+    string? BackgroundColor);
 
-public record CreateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds);
+public record CreateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor);
 
-public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds);
+public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor);

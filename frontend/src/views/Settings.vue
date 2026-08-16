@@ -60,6 +60,20 @@
       <van-cell title="分类管理" is-link to="/categories" icon="apps-o" />
     </van-cell-group>
 
+    <van-cell-group inset style="margin-top: 16px" title="笔记外观">
+      <van-cell
+        title="默认笔记颜色"
+        is-link
+        icon="brush-o"
+        @click="showColorPicker = true"
+      >
+        <template #value>
+          <div class="color-swatch" :style="{ background: defaultColorPreview }"></div>
+        </template>
+      </van-cell>
+      <div class="cell-hint">新建笔记会自动使用此颜色（已有笔记不受影响）</div>
+    </van-cell-group>
+
     <van-cell-group inset style="margin-top: 16px">
       <van-cell title="关于" value="笔记 v1.0" />
     </van-cell-group>
@@ -67,6 +81,14 @@
     <div class="logout">
       <van-button round block type="danger" plain @click="onLogout">退出登录</van-button>
     </div>
+
+    <!-- 默认颜色选择器 -->
+    <ColorPicker
+      v-model:show="showColorPicker"
+      v-model="defaultNoteColor"
+      @confirm="onSaveDefaultColor"
+      @reset="onResetDefaultColor"
+    />
   </div>
 </template>
 
@@ -75,6 +97,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { useAuthStore } from '../stores/auth'
+import ColorPicker from '../components/ColorPicker.vue'
+import { DEFAULT_NOTE_COLOR, isValidHex } from '../utils/color'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -84,6 +108,40 @@ const saving = ref(false)
 const uploadingAvatar = ref(false)
 
 const form = ref({ displayName: '' })
+
+// 默认笔记颜色（null 表示用系统白色）
+const showColorPicker = ref(false)
+const defaultNoteColor = ref(null)
+
+// 颜色预览方块（用户没设默认色时显示白色）
+const defaultColorPreview = computed(() => {
+  const c = defaultNoteColor.value && isValidHex(defaultNoteColor.value)
+    ? defaultNoteColor.value
+    : DEFAULT_NOTE_COLOR
+  return c
+})
+
+async function onSaveDefaultColor(color) {
+  try {
+    saving.value = true
+    await auth.updateProfile({
+      defaultNoteColor: color || ''  // null/空串表示清除为系统默认
+    })
+    showToast('默认颜色已保存')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function onResetDefaultColor() {
+  try {
+    saving.value = true
+    await auth.updateProfile({ defaultNoteColor: '' })
+    showToast('已重置为系统默认')
+  } finally {
+    saving.value = false
+  }
+}
 
 const avatarDisplayUrl = computed(() => {
   const raw = auth.user?.avatarUrl
@@ -138,10 +196,12 @@ async function onAvatarChange(e) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (auth.isLoggedIn && !auth.user) {
-    auth.fetchUser()
+    await auth.fetchUser()
   }
+  // 同步用户已有的默认颜色
+  defaultNoteColor.value = auth.user?.defaultNoteColor || null
 })
 
 async function onLogout() {
@@ -231,6 +291,19 @@ async function onLogout() {
 }
 .logout {
   margin: 32px 16px 0;
+}
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  display: inline-block;
+  vertical-align: middle;
+}
+.cell-hint {
+  font-size: 12px;
+  color: #969799;
+  padding: 6px 16px 12px;
 }
 
 /* 桌面端：居中阅读宽度 */

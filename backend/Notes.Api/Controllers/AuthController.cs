@@ -77,7 +77,7 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByIdAsync(UserId);
         if (user == null) return NotFound();
 
-        return Ok(new UserDto(user.Id, user.Email!, user.DisplayName, user.AvatarUrl, user.CreatedAt));
+        return Ok(new UserDto(user.Id, user.Email!, user.DisplayName, user.AvatarUrl, user.DefaultNoteColor, user.CreatedAt));
     }
 
     [Authorize]
@@ -99,11 +99,34 @@ public class AuthController : ControllerBase
             user.AvatarUrl = dto.AvatarUrl;
         }
 
+        // DefaultNoteColor: null 表示清空默认色（用系统白色），空字符串忽略，非空字符串校验 HEX 格式
+        if (dto.DefaultNoteColor != null)
+        {
+            var color = dto.DefaultNoteColor.Trim();
+            if (color.Length == 0)
+            {
+                user.DefaultNoteColor = null;
+            }
+            else
+            {
+                if (!IsValidHexColor(color))
+                    return BadRequest(new { message = "颜色格式不正确，需为 #RRGGBB 格式" });
+                user.DefaultNoteColor = color;
+            }
+        }
+
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
-        return Ok(new UserDto(user.Id, user.Email!, user.DisplayName, user.AvatarUrl, user.CreatedAt));
+        return Ok(new UserDto(user.Id, user.Email!, user.DisplayName, user.AvatarUrl, user.DefaultNoteColor, user.CreatedAt));
+    }
+
+    private static bool IsValidHexColor(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return false;
+        if (s[0] != '#') return false;
+        return s.Length == 7 && s[1..].All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
     }
 
     [Authorize]

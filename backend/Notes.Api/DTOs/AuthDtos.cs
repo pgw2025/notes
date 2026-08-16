@@ -6,8 +6,8 @@ public record LoginDto(string Email, string Password);
 
 public record AuthResponseDto(string Token, string Email, string? DisplayName);
 
-public record UserDto(string Id, string Email, string? DisplayName, string? AvatarUrl, DateTime CreatedAt);
+public record UserDto(string Id, string Email, string? DisplayName, string? AvatarUrl, string? DefaultNoteColor, DateTime CreatedAt);
 
-public record UpdateProfileDto(string? DisplayName, string? AvatarUrl);
+public record UpdateProfileDto(string? DisplayName, string? AvatarUrl, string? DefaultNoteColor);
 
 public record AvatarUploadResponse(string AvatarUrl);
