@@ -1,0 +1,72 @@
+# ============================================================
+# 笔记软件 .gitignore（统一覆盖 .NET 后端 + Node 前端）
+# ============================================================
+
+# ===== .NET / ASP.NET Core 后端 =====
+# 构建产物
+**/bin/
+**/obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+nuget.exe
+
+# 本地开发配置（可放本地机密覆盖，不提交）
+appsettings.Development.json
+appsettings.*.local.json
+appsettings.Local.json
+
+# EF Core 生成临时文件
+*.tmp
+
+# ===== Node.js / 前端 =====
+node_modules/
+dist/
+dist-ssr/
+.pnp.*
+*.local
+
+# 包管理器锁文件保留提交（package-lock.json 等），如需忽略可取消注释
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ===== 运行时生成的上传附件 =====
+backend/Notes.Api/Uploads/
+
+# ===== 日志 =====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===== IDE / 编辑器 =====
+.vs/
+.vscode/
+.idea/
+*.ntvs*
+*.njsproj
+*.sw?
+*.swo
+
+# ===== 操作系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ===== 其他 =====
+*.tsbuildinfo
+.bak

@@ -1,0 +1,169 @@
+<template>
+  <div class="page">
+    <van-nav-bar title="笔记">
+      <template #right>
+        <van-icon name="plus" size="22" @click="$router.push('/notes/new')" />
+      </template>
+    </van-nav-bar>
+
+    <van-tabs v-model:active="activeTab" sticky @change="onTabChange">
+      <van-tab title="全部" />
+      <van-tab v-for="c in categories" :key="c.id" :title="c.name" />
+    </van-tabs>
+
+    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+      <div v-if="!loading && notes.length === 0" class="empty">
+        <van-empty description="还没有笔记，点击右上角创建" />
+      </div>
+
+      <van-cell-group v-else inset style="margin-top: 8px">
+        <van-swipe-cell v-for="n in notes" :key="n.id">
+          <div class="note-card" @click="goDetail(n.id)">
+            <div class="note-title">{{ n.title || '无标题' }}</div>
+            <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
+            <div class="note-meta">
+              <van-tag v-if="n.categoryName" plain type="primary" size="medium">{{ n.categoryName }}</van-tag>
+              <van-tag
+                v-for="t in n.tags"
+                :key="t"
+                plain
+                size="medium"
+                color="#969799"
+                text-color="#969799"
+              >{{ t }}</van-tag>
+              <span class="note-time">{{ formatTime(n.updatedAt) }}</span>
+            </div>
+          </div>
+          <template #right>
+            <van-button square type="danger" text="删除" class="del-btn" @click.stop="onDelete(n)" />
+          </template>
+        </van-swipe-cell>
+      </van-cell-group>
+    </van-pull-refresh>
+  </div>
+</template>
+
+<script setup>
+import { ref, onActivated, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { showConfirmDialog, showToast } from 'vant'
+import http from '../api/http'
+import { formatTime } from '../utils/format'
+
+defineOptions({ name: 'NotesList' })
+
+const route = useRoute()
+const router = useRouter()
+
+const notes = ref([])
+const categories = ref([])
+const activeTab = ref(0)
+const refreshing = ref(false)
+const loading = ref(false)
+
+async function loadCategories() {
+  try {
+    categories.value = await http.get('/categories')
+  } catch {
+    // 忽略
+  }
+}
+
+async function loadNotes() {
+  loading.value = true
+  try {
+    const categoryId = activeTab.value > 0 ? categories.value[activeTab.value - 1]?.id : undefined
+    notes.value = await http.get('/notes', { params: { categoryId } })
+  } finally {
+    loading.value = false
+  }
+}
+
+function onTabChange() {
+  loadNotes()
+}
+
+function onRefresh() {
+  Promise.all([loadCategories(), loadNotes()]).finally(() => {
+    refreshing.value = false
+  })
+}
+
+function goDetail(id) {
+  router.push(`/notes/${id}`)
+}
+
+async function onDelete(note) {
+  try {
+    await showConfirmDialog({ title: '删除笔记', message: `确定删除「${note.title || '无标题'}」吗？` })
+    await http.delete(`/notes/${note.id}`)
+    notes.value = notes.value.filter((n) => n.id !== note.id)
+    showToast('已删除')
+  } catch {
+    // 取消
+  }
+}
+
+let initialized = false
+
+onMounted(async () => {
+  await loadCategories()
+  const qid = Number(route.query.categoryId)
+  if (qid) {
+    const idx = categories.value.findIndex((c) => c.id === qid)
+    if (idx >= 0) activeTab.value = idx + 1
+  }
+  await loadNotes()
+  initialized = true
+})
+
+onActivated(() => {
+  if (!initialized) return
+  // 从编辑页返回时刷新
+  loadCategories()
+  loadNotes()
+})
+</script>
+
+<style scoped>
+.page {
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+.empty {
+  padding-top: 40px;
+}
+.note-card {
+  padding: 14px 16px;
+}
+.note-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #323233;
+}
+.note-preview {
+  font-size: 13px;
+  color: #969799;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.note-time {
+  margin-left: auto;
+  font-size: 12px;
+  color: #c8c9cc;
+}
+.del-btn {
+  height: 100%;
+}
+</style>
