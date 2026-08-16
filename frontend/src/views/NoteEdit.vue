@@ -33,40 +33,43 @@
         />
       </div>
 
-      <div class="toolbar-wrap">
+      <div v-if="!isDesktop" class="toolbar-wrap">
         <van-tabs v-model:active="mode" shrink>
           <van-tab title="编辑" name="edit" />
           <van-tab title="预览" name="preview" />
         </van-tabs>
       </div>
 
-      <div v-show="mode === 'edit'" class="edit-area">
-        <div class="toolbar">
-          <van-button size="small" plain @click="insert('# ', '', '标题')">H</van-button>
-          <van-button size="small" plain @click="insert('**', '**', '粗体')"><b>B</b></van-button>
-          <van-button size="small" plain @click="insert('*', '*', '斜体')"><i>I</i></van-button>
-          <van-button size="small" plain @click="insert('- ', '', '列表项')">•</van-button>
-          <van-button size="small" plain @click="insert('\n```\n', '\n```\n', '代码')">{ }</van-button>
-          <van-button size="small" plain @click="insert('[', '](https://)', '链接')">链接</van-button>
-          <van-button size="small" plain type="primary" @click="triggerUpload">图片</van-button>
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="onFileChange"
-          />
+      <div class="editor-body">
+        <div v-show="isDesktop || mode === 'edit'" class="edit-area">
+          <div class="toolbar">
+            <van-button size="small" plain @click="insert('# ', '', '标题')">H</van-button>
+            <van-button size="small" plain @click="insert('**', '**', '粗体')"><b>B</b></van-button>
+            <van-button size="small" plain @click="insert('*', '*', '斜体')"><i>I</i></van-button>
+            <van-button size="small" plain @click="insert('- ', '', '列表项')">•</van-button>
+            <van-button size="small" plain @click="insert('\n```\n', '\n```\n', '代码')">{ }</van-button>
+            <van-button size="small" plain @click="insert('[', '](https://)', '链接')">链接</van-button>
+            <van-button size="small" plain type="primary" @click="triggerUpload">图片</van-button>
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="onFileChange"
+            />
+          </div>
+          <textarea
+            ref="textareaRef"
+            v-model="form.content"
+            class="content-area"
+            placeholder="开始记录... 支持 Markdown 语法"
+          ></textarea>
         </div>
-        <textarea
-          ref="textareaRef"
-          v-model="form.content"
-          class="content-area"
-          placeholder="开始记录... 支持 Markdown 语法"
-        ></textarea>
-      </div>
 
-      <div v-show="mode === 'preview'" class="preview-area">
-        <markdown-body :content="form.content || '*暂无内容*'" />
+        <div v-show="isDesktop || mode === 'preview'" class="preview-area">
+          <div v-if="isDesktop" class="preview-label">预览</div>
+          <markdown-body :content="form.content || '*暂无内容*'" />
+        </div>
       </div>
     </div>
 
@@ -119,9 +122,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import http from '../api/http'
 import MarkdownBody from '../components/MarkdownBody.vue'
+import { useResponsive } from '../composables/useResponsive'
 
 const route = useRoute()
 const router = useRouter()
+const { isDesktop } = useResponsive()
 
 const noteId = computed(() => route.params.id)
 const isEdit = computed(() => !!noteId.value)
@@ -317,10 +322,31 @@ onMounted(loadData)
   font-family: inherit;
   background: #fff;
 }
+.editor-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.edit-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background: #fff;
+}
 .preview-area {
   padding: 14px 16px;
   background: #fff;
   min-height: 50vh;
+}
+.preview-label {
+  font-size: 12px;
+  color: #969799;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid #ebedf0;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
 }
 .tag-picker {
   height: 100%;
@@ -333,5 +359,45 @@ onMounted(loadData)
 }
 .empty-tags {
   padding-top: 20px;
+}
+
+/* 桌面端：编辑/预览并排显示 */
+@media (min-width: 1024px) {
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: calc(100vh - 40px);
+    background: #fff;
+    border-left: 1px solid #ebedf0;
+    border-right: 1px solid #ebedf0;
+  }
+  .editor {
+    padding: 0 24px 24px;
+  }
+  .editor-body {
+    flex-direction: row;
+    gap: 16px;
+    border: 1px solid #ebedf0;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 60vh;
+  }
+  .edit-area {
+    flex: 1 1 50%;
+    border-right: 1px solid #ebedf0;
+  }
+  .preview-area {
+    flex: 1 1 50%;
+    overflow-y: auto;
+    min-height: 60vh;
+    padding: 14px 20px;
+  }
+  .content-area {
+    min-height: 60vh;
+  }
+  .toolbar {
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
 }
 </style>

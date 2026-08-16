@@ -16,8 +16,8 @@
         <van-empty description="还没有笔记，点击右上角创建" />
       </div>
 
-      <van-cell-group v-else inset style="margin-top: 8px">
-        <van-swipe-cell v-for="n in notes" :key="n.id">
+      <van-cell-group v-else inset class="notes-grid" style="margin-top: 8px">
+        <van-swipe-cell v-for="n in notes" :key="n.id" class="notes-grid-item">
           <div class="note-card" @click="goDetail(n.id)">
             <div class="note-title">{{ n.title || '无标题' }}</div>
             <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
@@ -165,5 +165,44 @@ onActivated(() => {
 }
 .del-btn {
   height: 100%;
+}
+
+/* 桌面端：多列网格 + 居中阅读宽度 */
+@media (min-width: 1024px) {
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-bottom: 32px;
+  }
+  .notes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 16px;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .notes-grid-item {
+    background: #fff;
+    border: 1px solid #ebedf0;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .notes-grid-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+  .note-card {
+    cursor: pointer;
+    height: 100%;
+  }
+}
+
+@media (min-width: 1440px) {
+  .notes-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 </style>

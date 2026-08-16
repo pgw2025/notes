@@ -95,4 +95,13 @@ function onClear() {
   font-size: 12px;
   color: #c8c9cc;
 }
+
+/* 桌面端：居中阅读宽度 */
+@media (min-width: 1024px) {
+  .page {
+    max-width: 820px;
+    margin: 0 auto;
+    padding-bottom: 32px;
+  }
+}
 </style>

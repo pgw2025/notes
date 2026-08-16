@@ -88,4 +88,26 @@ async function onSubmit() {
   font-size: 14px;
   color: #969799;
 }
+
+/* 桌面端：卡片式表单 */
+@media (min-width: 1024px) {
+  .auth-page {
+    max-width: 480px;
+    margin: 40px auto;
+    min-height: auto;
+    padding: 0 24px;
+  }
+  .auth-page :deep(.van-form) {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px 32px 32px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+  .auth-page :deep(.van-cell-group--inset) {
+    margin: 0;
+  }
+  .auth-actions {
+    margin: 20px 0 0;
+  }
+}
 </style>

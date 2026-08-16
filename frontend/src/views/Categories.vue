@@ -127,4 +127,13 @@ onActivated(load)
 .form-actions {
   padding: 12px 16px;
 }
+
+/* 桌面端：居中阅读宽度 */
+@media (min-width: 1024px) {
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding-bottom: 32px;
+  }
+}
 </style>

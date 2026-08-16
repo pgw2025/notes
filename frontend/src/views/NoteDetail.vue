@@ -130,4 +130,23 @@ onMounted(loadNote)
   justify-content: center;
   padding: 60px 0;
 }
+
+/* 桌面端：居中阅读宽度 */
+@media (min-width: 1024px) {
+  .page {
+    max-width: 820px;
+    margin: 0 auto;
+    padding-bottom: 48px;
+  }
+  .detail {
+    padding: 24px 32px;
+  }
+  .detail-title {
+    font-size: 26px;
+  }
+  .markdown-body {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+}
 </style>

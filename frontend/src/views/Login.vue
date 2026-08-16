@@ -101,4 +101,38 @@ async function onSubmit() {
   font-size: 14px;
   color: #969799;
 }
+
+/* 桌面端：卡片式表单 */
+@media (min-width: 1024px) {
+  .auth-page {
+    padding: 40px 24px;
+    align-items: center;
+  }
+  .auth-page > .auth-header,
+  .auth-page > .van-form {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 12px;
+  }
+  .auth-page > .auth-header {
+    padding: 40px 32px 24px;
+    margin-bottom: 0;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+  .auth-page > .van-form {
+    padding: 24px 32px 32px;
+    margin-top: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+  .auth-page > .van-form :deep(.van-cell-group--inset) {
+    margin: 0;
+  }
+  .auth-actions {
+    margin: 20px 0 0;
+  }
+  .auth-footer {
+    max-width: 420px;
+  }
+}
 </style>
