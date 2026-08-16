@@ -4,6 +4,8 @@ public interface IFileStorageService
 {
     Task<(string FilePath, string FileName, long Size)> SaveAsync(IFormFile file, int noteId);
 
+    Task<(string FilePath, string FileName, long Size)> SaveAvatarAsync(IFormFile file, string userId);
+
     Task<(Stream Stream, string ContentType, string FileName)> GetAsync(string filePath);
 
     void Delete(string filePath);
@@ -34,6 +36,21 @@ public class FileStorageService : IFileStorageService
         await file.CopyToAsync(stream);
 
         return (fullPath, safeName, file.Length);
+    }
+
+    public async Task<(string FilePath, string FileName, long Size)> SaveAvatarAsync(IFormFile file, string userId)
+    {
+        var uploadsRoot = Path.Combine(_env.ContentRootPath, "Uploads", "Avatars");
+        Directory.CreateDirectory(uploadsRoot);
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var uniqueName = $"{Guid.NewGuid():N}{ext}";
+        var fullPath = Path.Combine(uploadsRoot, uniqueName);
+
+        await using var stream = File.Create(fullPath);
+        await file.CopyToAsync(stream);
+
+        return (fullPath, uniqueName, file.Length);
     }
 
     public async Task<(Stream Stream, string ContentType, string FileName)> GetAsync(string filePath)
