@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,13 @@ public class AuthController : ControllerBase
 {
     private const long MaxAvatarSize = 5 * 1024 * 1024; // 5MB
     private static readonly HashSet<string> AllowedAvatarExts = new() { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+
+    /// <summary>用户首次注册时自动填入的默认色板（10 个常用色）</summary>
+    private static readonly List<string> DefaultPalette = new()
+    {
+        "#FFFFFF", "#FFF9C4", "#FFE0B2", "#FFCDD2", "#C8E6C9",
+        "#BBDEFB", "#E1BEE7", "#1A237E", "#1B5E20", "#212121"
+    };
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly TokenService _tokenService;
@@ -44,7 +52,9 @@ public class AuthController : ControllerBase
             Email = dto.Email,
             DisplayName = dto.DisplayName,
             EmailConfirmed = true,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            // 注册时自动初始化默认色板
+            CustomColors = JsonSerializer.Serialize(DefaultPalette)
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -77,7 +87,23 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByIdAsync(UserId);
         if (user == null) return NotFound();
 
-        return Ok(new UserDto(user.Id, user.Email!, user.DisplayName, user.AvatarUrl, user.DefaultNoteColor, user.CreatedAt));
+        var colors = ParseCustomColors(user.CustomColors);
+        // 如果是老用户（注册时还没初始化色板），自动补上默认色板
+        if (colors == null)
+        {
+            colors = new List<string>(DefaultPalette);
+            user.CustomColors = JsonSerializer.Serialize(colors);
+            await _userManager.UpdateAsync(user);
+        }
+
+        return Ok(new UserDto(
+            user.Id,
+            user.Email!,
+            user.DisplayName,
+            user.AvatarUrl,
+            user.DefaultNoteColor,
+            colors,
+            user.CreatedAt));
     }
 
     [Authorize]
@@ -115,11 +141,32 @@ public class AuthController : ControllerBase
             }
         }
 
+        // CustomColors: 整体替换（前端负责 add/remove 后传完整列表）
+        if (dto.CustomColors != null)
+        {
+            // 校验每一项都是合法 HEX，最多 50 个颜色
+            var validColors = dto.CustomColors
+                .Where(c => !string.IsNullOrWhiteSpace(c) && IsValidHexColor(c.Trim()))
+                .Select(c => c.Trim().ToUpperInvariant())
+                .Distinct()
+                .Take(50)
+                .ToList();
+            user.CustomColors = JsonSerializer.Serialize(validColors);
+        }
+
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
-        return Ok(new UserDto(user.Id, user.Email!, user.DisplayName, user.AvatarUrl, user.DefaultNoteColor, user.CreatedAt));
+        var colorsOut = ParseCustomColors(user.CustomColors) ?? new List<string>();
+        return Ok(new UserDto(
+            user.Id,
+            user.Email!,
+            user.DisplayName,
+            user.AvatarUrl,
+            user.DefaultNoteColor,
+            colorsOut,
+            user.CreatedAt));
     }
 
     private static bool IsValidHexColor(string s)
@@ -127,6 +174,21 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(s)) return false;
         if (s[0] != '#') return false;
         return s.Length == 7 && s[1..].All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+    }
+
+    /// <summary>解析用户色板 JSON 字符串。返回 null 表示未初始化。</summary>
+    private static List<string>? ParseCustomColors(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(json);
+            return list ?? new List<string>();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     [Authorize]

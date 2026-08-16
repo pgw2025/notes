@@ -1,20 +1,9 @@
 /**
- * 颜色工具：亮度判断 + 预设色板
+ * 颜色工具：亮度判断 + HEX 校验
+ *
+ * 注：用户色板不再写死在代码里，而是存到后端 ApplicationUser.CustomColors 字段（JSON 数组），
+ * 由用户自己管理（添加/删除）。后端在用户注册时自动初始化一份默认色板。
  */
-
-/** 预设色板（10 个常用色，前 7 个浅色，后 3 个深色） */
-export const PRESET_COLORS = [
-  { name: '经典白', hex: '#FFFFFF' },
-  { name: '米黄',   hex: '#FFF9C4' },
-  { name: '暖橙',   hex: '#FFE0B2' },
-  { name: '浅粉',   hex: '#FFCDD2' },
-  { name: '薄荷绿', hex: '#C8E6C9' },
-  { name: '天蓝',   hex: '#BBDEFB' },
-  { name: '淡紫',   hex: '#E1BEE7' },
-  { name: '深蓝',   hex: '#1A237E' },
-  { name: '深绿',   hex: '#1B5E20' },
-  { name: '墨黑',   hex: '#212121' }
-]
 
 /** 系统默认色（用户没设默认色、笔记也没设色时用） */
 export const DEFAULT_NOTE_COLOR = '#FFFFFF'
