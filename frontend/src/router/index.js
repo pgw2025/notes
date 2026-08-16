@@ -15,6 +15,7 @@ const routes = [
     meta: { public: true, tabbar: false }
   },
   { path: '/notes', name: 'notes', component: () => import('../views/NotesList.vue') },
+  { path: '/timeline', name: 'timeline', component: () => import('../views/Timeline.vue') },
   {
     path: '/notes/new',
     name: 'note-new',

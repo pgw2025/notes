@@ -167,6 +167,17 @@ onActivated(() => {
   height: 100%;
 }
 
+/* 移动端：给每条笔记之间加间距（van-cell-group 默认子元素紧贴） */
+.notes-grid-item {
+  margin-bottom: 8px;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.notes-grid-item:last-child {
+  margin-bottom: 0;
+}
+
 /* 桌面端：多列网格 + 居中阅读宽度 */
 @media (min-width: 1024px) {
   .page {
@@ -184,6 +195,7 @@ onActivated(() => {
     overflow: visible;
   }
   .notes-grid-item {
+    margin-bottom: 0; /* 桌面端用 grid gap 控制间距，重置移动端的 margin */
     background: #fff;
     border: 1px solid #ebedf0;
     border-radius: 8px;

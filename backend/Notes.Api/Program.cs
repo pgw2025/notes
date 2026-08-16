@@ -1,10 +1,13 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Notes.Api.Data;
+using Notes.Api.Infrastructure;
 using Notes.Api.Models;
 using Notes.Api.Services;
 
@@ -91,7 +94,18 @@ builder.Services.AddCors(options =>
 });
 
 // ===== Controllers + Swagger =====
-builder.Services.AddControllers();
+// 全局 JSON 序列化配置：
+// 1) DateTime 统一按 UTC 输出带 "Z" 后缀（如 "2026-08-16T07:30:00Z"）
+//    原因：MySQL 读回的 DateTime 是 Unspecified Kind，默认序列化不带 Z，
+//    前端 new Date() 会当本地时间解析，导致显示比北京时间少 8 小时。
+//    设置为 Utc 后前端 new Date() 按 UTC 解析，getHours() 等本地方法自动转换为本地时间。
+// 2) PascalCase 实体属性名 → camelCase（与前端 JS 一致）
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonDateTimeUtcConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

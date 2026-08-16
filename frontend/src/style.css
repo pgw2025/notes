@@ -35,6 +35,33 @@ a {
   text-decoration: none;
 }
 
+/* 桌面端：让 NavBar 不再全屏 fixed 覆盖侧边栏，改为普通文档流元素
+ * 原因：Vant NavBar 用 fixed prop 时是 position:fixed; left:0; right:0 全屏宽度，
+ * 会盖住左侧 220px 侧边栏的顶部（"📝 笔记"品牌被压没）。
+ * 桌面端把 position 改为 static，宽度自动跟随父容器 .app-main（侧边栏右侧的主内容区）。
+ * 移动端（<1024px）保留 fixed 吸顶效果不变。
+ *
+ * 注意：本文件是普通全局 CSS，不能使用 :deep()（那是 Vue <style scoped> 专用语法）。
+ * 在普通 CSS 中写 :deep() 会让整个选择器列表失效（CSS 规范：列表中任一无效则整条丢弃）。
+ *
+ * Vant 4 NavBar 在 fixed + placeholder 时渲染两层：
+ *   1) <div class="van-nav-bar--placeholder">  占位空白条（高度=NavBar高度，给 fixed 留位置）
+ *   2) <div class="van-nav-bar van-nav-bar--fixed">  实际 fixed 标题栏
+ * 桌面端 NavBar 改 static 后，placeholder 不需要再占位，高度改为 auto。
+ */
+@media (min-width: 1024px) {
+  .app-layout.is-desktop .van-nav-bar--fixed {
+    position: static !important;
+    width: 100% !important;
+    left: auto !important;
+    right: auto !important;
+  }
+
+  .app-layout.is-desktop .van-nav-bar--placeholder {
+    height: auto !important;
+  }
+}
+
 /* 桌面端：无底部 Tabbar，减少底部留白 */
 @media (min-width: 1024px) {
   .app-layout.is-desktop .page {

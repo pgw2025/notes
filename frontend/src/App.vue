@@ -59,6 +59,7 @@ const showSidebar = computed(() => isDesktop.value && route.meta.public !== true
 
 const navItems = [
   { to: '/notes', icon: 'notes-o', label: '笔记' },
+  { to: '/timeline', icon: 'clock-o', label: '时间线' },
   { to: '/search', icon: 'search', label: '搜索' },
   { to: '/categories', icon: 'apps-o', label: '分类' },
   { to: '/settings', icon: 'contact', label: '我的' }

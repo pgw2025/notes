@@ -26,4 +26,6 @@ public class Note
     public ICollection<NoteTag> NoteTags { get; set; } = new List<NoteTag>();
 
     public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+
+    public ICollection<NoteVersion> Versions { get; set; } = new List<NoteVersion>();
 }

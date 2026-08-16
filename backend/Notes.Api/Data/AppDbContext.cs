@@ -11,10 +11,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Note> Notes => Set<Note>();
-    public DbSet<Category> Categories => Set<Category>();
     public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<NoteTag> NoteTags => Set<NoteTag>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<NoteVersion> NoteVersions => Set<NoteVersion>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
