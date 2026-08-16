@@ -3,6 +3,12 @@
     <van-nav-bar title="笔记详情" left-arrow @click-left="$router.back()">
       <template #right>
         <div class="nav-right">
+          <van-icon
+            :name="note?.isPinned ? 'star' : 'star-o'"
+            size="20"
+            :color="note?.isPinned ? '#ff976a' : navIconColor"
+            @click="onTogglePin"
+          />
           <van-icon name="clock-o" size="20" :style="{ color: navIconColor }" @click="openVersions" />
           <van-icon name="edit" size="20" :style="{ color: navIconColor }" @click="$router.push(`/notes/${note.id}/edit`)" />
         </div>
@@ -208,6 +214,25 @@ async function loadNote() {
     note.value = await http.get(`/notes/${route.params.id}`)
   } catch {
     showToast('加载失败')
+  }
+}
+
+async function onTogglePin() {
+  if (!note.value) return
+  try {
+    if (note.value.isPinned) {
+      await http.post(`/notes/${note.value.id}/unpin`)
+      note.value.isPinned = false
+      note.value.pinnedAt = null
+      showToast('已取消置顶')
+    } else {
+      await http.post(`/notes/${note.value.id}/pin`)
+      note.value.isPinned = true
+      note.value.pinnedAt = new Date().toISOString()
+      showToast('已置顶')
+    }
+  } catch {
+    /* 拦截器处理 */
   }
 }
 

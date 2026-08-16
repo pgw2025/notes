@@ -49,7 +49,9 @@ public class NotesController : ControllerBase
             query = query.Where(n => n.CategoryId == categoryId);
 
         var notes = await query
-            .OrderByDescending(n => n.UpdatedAt)
+            .OrderByDescending(n => n.IsPinned)
+            .ThenByDescending(n => n.PinnedAt)
+            .ThenByDescending(n => n.UpdatedAt)
             .ToListAsync();
 
         return Ok(notes.Select(n => MapToListItem(n, userDefaultColor)));
@@ -86,7 +88,9 @@ public class NotesController : ControllerBase
             .Where(n => n.UserId == UserId &&
                 (EF.Functions.Collate(n.Title, "utf8mb4_general_ci").Contains(term) ||
                  EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term)))
-            .OrderByDescending(n => n.UpdatedAt)
+            .OrderByDescending(n => n.IsPinned)
+            .ThenByDescending(n => n.PinnedAt)
+            .ThenByDescending(n => n.UpdatedAt)
             .ToListAsync();
 
         return Ok(notes.Select(n => MapToListItem(n, userDefaultColor)));
@@ -158,7 +162,12 @@ public class NotesController : ControllerBase
                             .Select(dayGroup => new TimelineDayDto(
                                 dayGroup.Key,
                                 culture.DateTimeFormat.GetDayName(dayGroup.Key.DayOfWeek),
-                                dayGroup.Select(n => MapToListItem(n, userDefaultColor)).OrderByDescending(x => x.UpdatedAt).ToList(),
+                                dayGroup
+                                    .Select(n => MapToListItem(n, userDefaultColor))
+                                    .OrderByDescending(x => x.IsPinned)
+                                    .ThenByDescending(x => x.PinnedAt)
+                                    .ThenByDescending(x => x.UpdatedAt)
+                                    .ToList(),
                                 dayGroup.Count()))
                             .ToList();
 
@@ -189,6 +198,7 @@ public class NotesController : ControllerBase
         // 颜色 fallback：dto 指定了就用 dto 的，否则用用户默认色
         var userDefaultColor = await GetUserDefaultColorAsync();
         var backgroundColor = ResolveColor(dto.BackgroundColor, userDefaultColor);
+        var isPinned = dto.IsPinned ?? false;
 
         var note = new Note
         {
@@ -197,6 +207,8 @@ public class NotesController : ControllerBase
             CategoryId = dto.CategoryId,
             UserId = UserId,
             BackgroundColor = backgroundColor,
+            IsPinned = isPinned,
+            PinnedAt = isPinned ? DateTime.UtcNow : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -275,6 +287,22 @@ public class NotesController : ControllerBase
         note.CategoryId = dto.CategoryId;
         note.BackgroundColor = newBackgroundColor;
         note.UpdatedAt = DateTime.UtcNow;
+
+        // 置顶字段：dto.IsPinned 为 null 表示保持不变
+        if (dto.IsPinned.HasValue)
+        {
+            var newIsPinned = dto.IsPinned.Value;
+            if (newIsPinned && !note.IsPinned)
+            {
+                note.IsPinned = true;
+                note.PinnedAt = DateTime.UtcNow;
+            }
+            else if (!newIsPinned && note.IsPinned)
+            {
+                note.IsPinned = false;
+                note.PinnedAt = null;
+            }
+        }
 
         _db.NoteTags.RemoveRange(note.NoteTags);
         await SyncTags(note, dto.TagIds ?? new List<int>());
@@ -442,6 +470,40 @@ public class NotesController : ControllerBase
         return Ok(new { NoteId = id, RestoredFromVersionId = vid });
     }
 
+    // ===================== 置顶 / 取消置顶 =====================
+
+    [HttpPost("{id:int}/pin")]
+    public async Task<IActionResult> Pin(int id)
+    {
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+        if (note == null) return NotFound();
+
+        if (!note.IsPinned)
+        {
+            note.IsPinned = true;
+            note.PinnedAt = DateTime.UtcNow;
+            note.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+        return Ok(new { note.Id, note.IsPinned, note.PinnedAt });
+    }
+
+    [HttpPost("{id:int}/unpin")]
+    public async Task<IActionResult> Unpin(int id)
+    {
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+        if (note == null) return NotFound();
+
+        if (note.IsPinned)
+        {
+            note.IsPinned = false;
+            note.PinnedAt = null;
+            note.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+        return Ok(new { note.Id, note.IsPinned, note.PinnedAt });
+    }
+
     // ===================== 私有工具方法 =====================
 
     /// <summary>
@@ -475,7 +537,9 @@ public class NotesController : ControllerBase
             n.Category?.Name,
             n.UpdatedAt,
             n.NoteTags.Select(nt => nt.Tag.Name).OrderBy(x => x).ToList(),
-            effectiveColor);
+            effectiveColor,
+            n.IsPinned,
+            n.PinnedAt);
     }
 
     private static NoteDto MapToDto(Note n, string? userDefaultColor)
@@ -491,7 +555,9 @@ public class NotesController : ControllerBase
             n.UpdatedAt,
             n.NoteTags.Select(nt => nt.Tag.Name).OrderBy(x => x).ToList(),
             n.Attachments.Select(a => new AttachmentDto(a.Id, a.FileName, a.Size, a.ContentType)).ToList(),
-            effectiveColor);
+            effectiveColor,
+            n.IsPinned,
+            n.PinnedAt);
     }
 
     private async Task SyncTags(Note note, List<int> tagIds)

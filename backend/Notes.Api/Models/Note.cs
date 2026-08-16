@@ -23,6 +23,12 @@ public class Note
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>是否置顶（置顶笔记在列表和时间线中优先显示）</summary>
+    public bool IsPinned { get; set; }
+
+    /// <summary>置顶操作的时间（取消置顶后清空）；用此字段让置顶笔记按置顶时间倒序排列</summary>
+    public DateTime? PinnedAt { get; set; }
+
     /// <summary>笔记背景色（HEX 格式如 "#FFF9C4"）。null 表示用用户默认色或系统白色。</summary>
     public string? BackgroundColor { get; set; }
 

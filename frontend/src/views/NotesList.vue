@@ -17,35 +17,46 @@
       </div>
 
       <van-cell-group v-else inset class="notes-grid" style="margin-top: 8px">
-        <van-swipe-cell
-          v-for="n in notes"
-          :key="n.id"
-          class="notes-grid-item"
-        >
-          <div
-            class="note-card"
-            :style="cardStyle(n)"
-            @click="goDetail(n.id)"
-          >
-            <div class="note-title">{{ n.title || '无标题' }}</div>
-            <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
-            <div class="note-meta">
-              <van-tag v-if="n.categoryName" plain type="primary" size="medium" :style="tagStyle(n)"> {{ n.categoryName }}</van-tag>
-              <van-tag
-                v-for="t in n.tags"
-                :key="t"
-                plain
-                size="medium"
-                :style="tagStyle(n)"
-              >{{ t }}</van-tag>
-              <span class="note-time" :style="{ color: timeColor(n) }">{{ formatTime(n.updatedAt) }}</span>
-            </div>
-          </div>
-          <template #right>
-            <van-button square type="danger" text="删除" class="del-btn" @click.stop="onDelete(n)" />
-          </template>
-        </van-swipe-cell>
-      </van-cell-group>
+    <van-swipe-cell
+      v-for="n in notes"
+      :key="n.id"
+      class="notes-grid-item"
+      :class="{ 'is-pinned': n.isPinned }"
+    >
+      <div
+        class="note-card"
+        :style="cardStyle(n)"
+        @click="goDetail(n.id)"
+      >
+        <div class="note-title-row">
+          <van-icon v-if="n.isPinned" name="star" color="#ff976a" size="16" class="pin-icon" />
+          <div class="note-title">{{ n.title || '无标题' }}</div>
+        </div>
+        <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
+        <div class="note-meta">
+          <van-tag v-if="n.categoryName" plain type="primary" size="medium" :style="tagStyle(n)"> {{ n.categoryName }}</van-tag>
+          <van-tag
+            v-for="t in n.tags"
+            :key="t"
+            plain
+            size="medium"
+            :style="tagStyle(n)"
+          >{{ t }}</van-tag>
+          <span class="note-time" :style="{ color: timeColor(n) }">{{ formatTime(n.updatedAt) }}</span>
+        </div>
+      </div>
+      <template #right>
+        <van-button
+          square
+          type="warning"
+          :text="n.isPinned ? '取消置顶' : '置顶'"
+          class="pin-btn"
+          @click.stop="onTogglePin(n)"
+        />
+        <van-button square type="danger" text="删除" class="del-btn" @click.stop="onDelete(n)" />
+      </template>
+    </van-swipe-cell>
+  </van-cell-group>
     </van-pull-refresh>
   </div>
 </template>
@@ -98,6 +109,37 @@ function tagStyle(n) {
 function timeColor(n) {
   const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
   return isDarkColor(bg) ? 'rgba(255, 255, 255, 0.6)' : '#c8c9cc'
+}
+
+async function onTogglePin(n) {
+  try {
+    if (n.isPinned) {
+      await http.post(`/notes/${n.id}/unpin`)
+      n.isPinned = false
+      n.pinnedAt = null
+      showToast('已取消置顶')
+    } else {
+      await http.post(`/notes/${n.id}/pin`)
+      n.isPinned = true
+      n.pinnedAt = new Date().toISOString()
+      showToast('已置顶')
+    }
+    // 置顶状态变化后需要重新排序（后端会按置顶先排，但前端显示顺序没变）
+    // 所以这里直接在前端按相同规则重排
+    sortNotesInPlace()
+  } catch {
+    /* 错误由拦截器提示 */
+  }
+}
+
+function sortNotesInPlace() {
+  notes.value.sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+    const pa = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0
+    const pb = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0
+    if (pa !== pb) return pb - pa
+    return new Date(b.updatedAt) - new Date(a.updatedAt)
+  })
 }
 
 async function loadCategories() {
@@ -179,10 +221,19 @@ onActivated(() => {
 .note-card {
   padding: 14px 16px;
 }
+.note-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.pin-icon {
+  flex-shrink: 0;
+}
 .note-title {
+  flex: 1;
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 6px;
   /* color 由内联样式控制，浅色背景默认深色 */
   color: inherit;
 }
@@ -208,6 +259,9 @@ onActivated(() => {
   /* color 由内联样式控制 */
 }
 .del-btn {
+  height: 100%;
+}
+.pin-btn {
   height: 100%;
 }
 

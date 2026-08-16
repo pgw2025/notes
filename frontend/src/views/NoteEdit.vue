@@ -7,6 +7,12 @@
     >
       <template #right>
         <div class="nav-actions">
+          <van-icon
+            :name="form.isPinned ? 'star' : 'star-o'"
+            size="20"
+            :color="form.isPinned ? '#ff976a' : undefined"
+            @click="form.isPinned = !form.isPinned"
+          />
           <van-icon name="edit" size="20" class="color-icon" @click="showColorPicker = true" />
           <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
         </div>
@@ -150,7 +156,8 @@ const form = reactive({
   content: '',
   categoryId: null,
   tagIds: [],
-  backgroundColor: null
+  backgroundColor: null,
+  isPinned: false
 })
 const categories = ref([])
 const tags = ref([])
@@ -212,6 +219,7 @@ async function loadData() {
     form.title = note.title
     form.content = note.content
     form.categoryId = note.categoryId
+    form.isPinned = note.isPinned || false
     // 把标签名映射为 id
     form.tagIds = (note.tags || [])
       .map((name) => tags.value.find((t) => t.name === name)?.id)
@@ -283,7 +291,8 @@ async function onSave() {
       content: form.content,
       categoryId: form.categoryId,
       tagIds: form.tagIds,
-      backgroundColor: form.backgroundColor || ''  // null/空串表示清除为跟随默认色
+      backgroundColor: form.backgroundColor || '',  // null/空串表示清除为跟随默认色
+      isPinned: form.isPinned
     }
     if (isEdit.value) {
       await http.put(`/notes/${noteId.value}`, payload)

@@ -12,7 +12,9 @@ public record NoteDto(
     DateTime UpdatedAt,
     List<string> Tags,
     List<AttachmentDto> Attachments,
-    string? BackgroundColor);
+    string? BackgroundColor,
+    bool IsPinned,
+    DateTime? PinnedAt);
 
 public record NoteListItemDto(
     int Id,
@@ -22,8 +24,10 @@ public record NoteListItemDto(
     string? CategoryName,
     DateTime UpdatedAt,
     List<string> Tags,
-    string? BackgroundColor);
+    string? BackgroundColor,
+    bool IsPinned,
+    DateTime? PinnedAt);
 
-public record CreateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor);
+public record CreateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned);
 
-public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor);
+public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned);
