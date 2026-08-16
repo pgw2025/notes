@@ -105,10 +105,10 @@ function tagStyle(n) {
   return {} // 浅色背景用 Vant 默认样式
 }
 
-// 时间文字色：深色背景 → 半透明白；浅色背景 → 浅灰
+// 时间文字色：深色背景 → 半透明白；浅色背景 → 中灰（保证可读性）
 function timeColor(n) {
   const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
-  return isDarkColor(bg) ? 'rgba(255, 255, 255, 0.6)' : '#c8c9cc'
+  return isDarkColor(bg) ? 'rgba(255, 255, 255, 0.75)' : '#969799'
 }
 
 async function onTogglePin(n) {
