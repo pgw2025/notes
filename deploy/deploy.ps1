@@ -75,6 +75,7 @@ scp -P $SshPort `
   "${DeployDir}\appsettings.Production.json" `
   "${DeployDir}\notes-api.service" `
   "${DeployDir}\nginx-notes.conf" `
+  "${DeployDir}\01-init-server.sh" `
   "${DeployDir}\02-deploy-app.sh" `
   "${SshUser}@${ServerIP}:${RemoteTmp}/"
 if ($LASTEXITCODE -ne 0) { throw "部署模板 scp 上传失败" }

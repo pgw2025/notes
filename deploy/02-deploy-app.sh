@@ -42,9 +42,9 @@ echo -e "\e[32m==== 2. 停止旧服务 → 复制新文件 → 赋权 ====\e[0m"
 systemctl stop notes-api 2>/dev/null || true
 
 # backend 目录内容已在 /opt/notes/backend，只做赋权
-chown -R www-data:www-data /opt/notes/backend
+chown -R nginx:nginx /opt/notes/backend
 chmod -R u=rwX,g=rX,o=rX /opt/notes/backend
-chown -R www-data:www-data /opt/notes/backend/Uploads 2>/dev/null || mkdir -p /opt/notes/backend/Uploads && chown -R www-data:www-data /opt/notes/backend/Uploads
+chown -R nginx:nginx /opt/notes/backend/Uploads 2>/dev/null || mkdir -p /opt/notes/backend/Uploads && chown -R nginx:nginx /opt/notes/backend/Uploads
 
 # 前端 dist
 if [ -d /opt/notes/_deploy_tmp/dist ]; then

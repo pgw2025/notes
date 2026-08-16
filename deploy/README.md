@@ -58,7 +58,7 @@ bash /root/01-init-server.sh
 2. `dnf install nginx`，开机自启；`firewalld` 若在运行则放行 80/443；
 3. 接入微软 RPM 源，`dnf install aspnetcore-runtime-8.0`；
 4. 向你询问 MySQL root 密码 → 创建数据库 `notes_db`、专用账号 `notes`，并保存密码到 `/root/.notes.env`；
-5. 创建运行账号 `www-data` 和 `/opt/notes/backend`、`/usr/share/nginx/notes` 等目录。
+5. 确认 `nginx` 用户存在（装 Nginx 时自动创建），并建立 `/opt/notes/backend`、`/usr/share/nginx/notes` 等目录。
 
 ### 方法 B：一行行手工敲（嫌脚本啰嗦时）
 
@@ -91,10 +91,10 @@ mysql -uroot -p   # 输入密码后进入
 #   FLUSH PRIVILEGES;
 #   \q
 
-# 4) 建目录与账号
-id -u www-data >/dev/null 2>&1 || useradd -r -s /sbin/nologin www-data
+# 4) 建目录（nginx 用户随 Nginx 包自动创建，无需手工建）
+id -u nginx >/dev/null 2>&1 || useradd -r -s /sbin/nologin nginx
 mkdir -p /opt/notes/backend /usr/share/nginx/notes /var/log/notes-api
-chown -R www-data:www-data /opt/notes /var/log/notes-api
+chown -R nginx:nginx /opt/notes /var/log/notes-api
 ```
 
 ### 阿里云控制台别忘开安全组！
@@ -141,7 +141,7 @@ bash /opt/notes/_deploy_tmp/02-deploy-app.sh
 脚本交互过程：
 1. 问你 **MySQL 账号 `notes` 的密码**（就是第一阶段你设置的那个强密码，若你执行了 01-init 会自动读 `/root/.notes.env`）。
 2. 首次部署自动生成随机 64 字节 **JWT Secret Key** 写入 `/opt/notes/backend/appsettings.Production.json`。
-3. 停止旧服务 → 赋权 `www-data` → 复制前端 dist 到 Nginx 目录。
+3. 停止旧服务 → 赋权 `nginx` → 复制前端 dist 到 Nginx 目录。
 4. 安装 `notes-api.service`（systemd）、`nginx-notes.conf`（Nginx）。
 5. `systemctl start notes-api`：**ASP.NET Core 启动时会自动执行 EF Core Migrations**（Program.cs 里已写好 `db.Database.Migrate()`），`notes_db` 会自动建表，包括本次新增的 AspNetUsers.AvatarUrl 列。
 

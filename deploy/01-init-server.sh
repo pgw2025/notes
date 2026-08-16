@@ -5,32 +5,32 @@
 # ============================================================================
 set -euo pipefail
 
-echo -e "\e[32m==== 1. 更新系统包 ====\e[0m"
-dnf -y upgrade --allowerasing
-dnf -y install epel-release || true
+# echo -e "\e[32m==== 1. 更新系统包 ====\e[0m"
+# dnf -y upgrade --allowerasing
+# dnf -y install epel-release || true
 
-echo -e "\e[32m==== 2. 安装 Nginx ====\e[0m"
-dnf -y install nginx
-systemctl enable --now nginx
-# 如开了 firewalld 则放行 80/443
-if command -v firewall-cmd >/dev/null 2>&1; then
-  if systemctl is-active --quiet firewalld; then
-    firewall-cmd --permanent --add-service=http
-    firewall-cmd --permanent --add-service=https
-    firewall-cmd --reload || true
-  fi
-fi
+# echo -e "\e[32m==== 2. 安装 Nginx ====\e[0m"
+# dnf -y install nginx
+# systemctl enable --now nginx
+# # 如开了 firewalld 则放行 80/443
+# if command -v firewall-cmd >/dev/null 2>&1; then
+#   if systemctl is-active --quiet firewalld; then
+#     firewall-cmd --permanent --add-service=http
+#     firewall-cmd --permanent --add-service=https
+#     firewall-cmd --reload || true
+#   fi
+# fi
 
-echo -e "\e[32m==== 3. 安装 ASP.NET Core 8 Runtime ====\e[0m"
-# 微软官方 RPM 仓库
-rpm -q packages-microsoft-com-prod >/dev/null 2>&1 || {
-  dnf -y install curl
-  rpm --import https://packages.microsoft.com/keys/microsoft.asc
-  curl -sSLo /etc/yum.repos.d/microsoft-prod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
-  dnf -y makecache
-}
-dnf -y install aspnetcore-runtime-8.0
-dotnet --list-runtimes
+# echo -e "\e[32m==== 3. 安装 ASP.NET Core 8 Runtime ====\e[0m"
+# # 微软官方 RPM 仓库
+# rpm -q packages-microsoft-com-prod >/dev/null 2>&1 || {
+#   dnf -y install curl
+#   rpm --import https://packages.microsoft.com/keys/microsoft.asc
+#   curl -sSLo /etc/yum.repos.d/microsoft-prod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
+#   dnf -y makecache
+# }
+# dnf -y install aspnetcore-runtime-8.0
+# dotnet --list-runtimes
 
 echo -e "\e[32m==== 4. 确认 MySQL 可用并创建数据库与专用账号 ====\e[0m"
 if command -v mysql >/dev/null 2>&1; then
@@ -61,11 +61,12 @@ else
 fi
 
 echo -e "\e[32m==== 5. 创建运行用户和目录 ====\e[0m"
-id -u www-data >/dev/null 2>&1 || useradd -r -s /sbin/nologin www-data
+# RHEL / Alibaba Cloud Linux 4 系列：nginx 包安装后会自动创建 nginx 用户
+id -u nginx >/dev/null 2>&1 || useradd -r -s /sbin/nologin nginx
 mkdir -p /opt/notes/backend
 mkdir -p /usr/share/nginx/notes
 mkdir -p /var/log/notes-api
-chown -R www-data:www-data /opt/notes /var/log/notes-api
+chown -R nginx:nginx /opt/notes /var/log/notes-api
 
 echo -e "\e[32m==== 环境初始化完成。接下来请执行:\e[0m"
 echo "  A. 在你 Windows 本地运行 deploy\deploy.ps1 上传构建产物"

@@ -3,14 +3,16 @@ Description=Notes ASP.NET Core Web API
 After=network.target mysql.service
 
 [Service]
-Type=notify
+# 用 simple 而非 notify：notify 要求应用通过 sd_notify 发送 READY=1，
+# 需要额外集成 Microsoft.Extensions.Hosting.Systemd 包；simple 在 fork 后即视为启动成功。
+Type=simple
 WorkingDirectory=/opt/notes/backend
-ExecStart=/usr/bin/dotnet /opt/notes/backend/Notes.Api.dll
+ExecStart=/root/.dotnet/dotnet /opt/notes/backend/Notes.Api.dll
 Restart=always
 RestartSec=5
 KillSignal=SIGINT
-User=www-data
-Group=www-data
+User=root
+Group=root
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false

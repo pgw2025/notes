@@ -135,10 +135,11 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// 开发环境自动迁移并创建数据库
-if (app.Environment.IsDevelopment())
+// 自动迁移并创建数据库（Development + Production 均执行）
+// 注：发布到生产环境首次启动时会自动执行 EF Core Migrations 建表（包括 Identity 表和业务表）
+// 如迁移失败不会中断服务，但需查看日志修复
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
