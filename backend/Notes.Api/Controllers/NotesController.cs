@@ -66,6 +66,7 @@ public class NotesController : ControllerBase
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Include(n => n.Attachments)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
 
         if (note == null) return NotFound();
@@ -242,6 +243,7 @@ public class NotesController : ControllerBase
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Include(n => n.Attachments)
+            .AsSplitQuery()
             .FirstAsync(n => n.Id == note.Id);
 
         return CreatedAtAction(nameof(Get), new { id = saved.Id }, MapToDto(saved, userDefaultColor));
