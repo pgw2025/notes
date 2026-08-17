@@ -60,6 +60,21 @@
       <van-cell title="分类管理" is-link to="/categories" icon="apps-o" />
     </van-cell-group>
 
+    <van-cell-group inset style="margin-top: 16px" title="导入 / 导出">
+      <van-cell title="导出全部笔记" is-link icon="down" @click="showExportSheet = true" />
+      <van-cell title="导入笔记" is-link icon="upgrade" @click="triggerImportInput" />
+      <div class="cell-hint">支持导入本系统导出的 JSON 或 Markdown 文件，重复笔记将自动跳过</div>
+    </van-cell-group>
+
+    <input
+      ref="importInput"
+      type="file"
+      accept=".json,.md,.markdown"
+      multiple
+      style="display: none"
+      @change="onImportFile"
+    />
+
     <van-cell-group inset style="margin-top: 16px" title="笔记外观">
       <van-cell
         title="默认笔记颜色"
@@ -89,16 +104,36 @@
       @confirm="onSaveDefaultColor"
       @reset="onResetDefaultColor"
     />
+
+    <!-- 导出格式选择 -->
+    <van-action-sheet
+      v-model:show="showExportSheet"
+      title="选择导出格式"
+      :actions="exportActions"
+      @select="onExportSelect"
+      cancel-text="取消"
+      close-on-click-action
+    />
+
+    <!-- 导入进度 -->
+    <van-overlay :show="importing" @click.stop>
+      <div class="import-overlay">
+        <van-loading size="32px" color="#fff" vertical>
+          {{ importProgressText }}
+        </van-loading>
+      </div>
+    </van-overlay>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { showConfirmDialog, showToast } from 'vant'
+import { showConfirmDialog, showToast, showSuccessToast } from 'vant'
 import { useAuthStore } from '../stores/auth'
 import ColorPicker from '../components/ColorPicker.vue'
 import { DEFAULT_NOTE_COLOR, isValidHex } from '../utils/color'
+import { exportAllNotes, importNotes } from '../utils/exportImport'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -112,6 +147,56 @@ const form = ref({ displayName: '' })
 // 默认笔记颜色（null 表示用系统白色）
 const showColorPicker = ref(false)
 const defaultNoteColor = ref(null)
+
+// 导入 / 导出
+const showExportSheet = ref(false)
+const importing = ref(false)
+const importProgressText = ref('')
+const importInput = ref(null)
+const exportActions = [
+  { name: 'JSON 格式（完整备份）', subname: '包含所有字段，适合备份恢复', value: 'json' },
+  { name: 'Markdown（纯正文）', subname: '每篇笔记一个 .md 文件，打包 ZIP', value: 'markdown' },
+  { name: 'Markdown + 元数据', subname: '含 frontmatter 元数据，打包 ZIP', value: 'markdown-meta' }
+]
+
+async function onExportSelect({ value }) {
+  showExportSheet.value = false
+  showToast('正在导出...')
+  try {
+    const count = await exportAllNotes(value)
+    showSuccessToast(`已导出 ${count} 篇笔记`)
+  } catch (e) {
+    showToast('导出失败：' + (e.message || '未知错误'))
+  }
+}
+
+function triggerImportInput() {
+  importInput.value?.click()
+}
+
+async function onImportFile(e) {
+  const files = Array.from(e.target.files || [])
+  if (!files.length) return
+  e.target.value = ''
+
+  importing.value = true
+  importProgressText.value = '准备导入...'
+  try {
+    const result = await importNotes(files, (current, total, title) => {
+      importProgressText.value = `导入中 ${current}/${total}：${title}`
+    })
+    const parts = []
+    if (result.imported) parts.push(`成功 ${result.imported}`)
+    if (result.skipped) parts.push(`跳过 ${result.skipped}`)
+    if (result.failed) parts.push(`失败 ${result.failed}`)
+    showSuccessToast(`导入完成：${parts.join('，')}`)
+  } catch (e) {
+    showToast('导入失败：' + (e.message || '未知错误'))
+  } finally {
+    importing.value = false
+    importProgressText.value = ''
+  }
+}
 
 // 颜色预览方块（用户没设默认色时显示白色）
 const defaultColorPreview = computed(() => {
@@ -304,6 +389,12 @@ async function onLogout() {
   font-size: 12px;
   color: #969799;
   padding: 6px 16px 12px;
+}
+.import-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 
 /* 桌面端：居中阅读宽度 */

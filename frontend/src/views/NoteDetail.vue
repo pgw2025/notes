@@ -10,6 +10,7 @@
             @click="onTogglePin"
           />
           <van-icon name="clock-o" size="20" :style="{ color: navIconColor }" @click="openVersions" />
+          <van-icon name="down" size="20" :style="{ color: navIconColor }" @click="showExportSheet = true" />
           <van-icon name="edit" size="20" :style="{ color: navIconColor }" @click="$router.push(`/notes/${note.id}/edit`)" />
         </div>
       </template>
@@ -155,22 +156,52 @@
         <markdown-body :content="activeVersion.content || '*无内容*'" />
       </div>
     </van-popup>
+
+    <!-- 导出格式选择 -->
+    <van-action-sheet
+      v-model:show="showExportSheet"
+      title="导出此笔记"
+      :actions="exportActions"
+      @select="onExportSelect"
+      cancel-text="取消"
+      close-on-click-action
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { showToast, showConfirmDialog } from 'vant'
+import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
 import http from '../api/http'
 import MarkdownBody from '../components/MarkdownBody.vue'
 import { formatDateTime } from '../utils/format'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
+import { exportSingleNote } from '../utils/exportImport'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
 const auth = useAuthStore()
 const note = ref(null)
+
+// 导出
+const showExportSheet = ref(false)
+const exportActions = [
+  { name: 'JSON 格式（完整备份）', value: 'json' },
+  { name: 'Markdown（纯正文）', value: 'markdown' },
+  { name: 'Markdown + 元数据', value: 'markdown-meta' }
+]
+
+function onExportSelect({ value }) {
+  showExportSheet.value = false
+  if (!note.value) return
+  try {
+    exportSingleNote(note.value, value)
+    showSuccessToast('已导出')
+  } catch (e) {
+    showToast('导出失败：' + (e.message || '未知错误'))
+  }
+}
 
 const showVersionsPopup = ref(false)
 const showViewModal = ref(false)
