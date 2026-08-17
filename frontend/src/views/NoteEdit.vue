@@ -60,6 +60,7 @@
             <van-button size="small" plain @click="insert('\n```\n', '\n```\n', '代码')">{ }</van-button>
             <van-button size="small" plain @click="insert('[', '](https://)', '链接')">链接</van-button>
             <van-button size="small" plain type="primary" @click="triggerUpload">图片</van-button>
+            <van-button size="small" plain @click="formatFormulas">格式化</van-button>
             <input
               ref="fileInput"
               type="file"
@@ -253,6 +254,52 @@ function insert(before, after = '', placeholder = '') {
     const pos = start + before.length + sel.length
     ta.setSelectionRange(pos, pos)
   })
+}
+
+/**
+ * 格式化 KaTeX 公式，重点处理 $ 两侧的空格问题：
+ * 1. 块级公式 $$...$$：确保定界符单独成行，内容首尾去空白
+ * 2. 行内公式 $...$：在 $ 外侧补空格（文字$x$文字 → 文字 $x$ 文字）
+ */
+function formatFormulas() {
+  let text = form.content
+  if (!text || !text.trim()) {
+    showToast('没有内容可格式化')
+    return
+  }
+
+  const original = text
+
+  // 1. 块级公式 $$...$$：定界符单独成行，内容首尾去空白
+  text = text.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner, offset, full) => {
+    const formula = inner.trim()
+    const beforeChar = offset > 0 ? full[offset - 1] : ''
+    const afterChar = offset + match.length < full.length ? full[offset + match.length] : ''
+    const needNewlineBefore = beforeChar && beforeChar !== '\n'
+    const needNewlineAfter = afterChar && afterChar !== '\n'
+    return `${needNewlineBefore ? '\n' : ''}$$\n${formula}\n$$${needNewlineAfter ? '\n' : ''}`
+  })
+
+  // 2. 行内公式 $...$：在 $ 外侧补空格
+  //    (?<![\$\\])  开始 $ 前面不是 $ 或 \（排除 $$ 和转义 \$）
+  //    (?!\$)       开始/结束 $ 后面不是 $（排除 $$）
+  //    (?<!\$)      结束 $ 前面不是 $（排除 $$）
+  //    [^\n]        不跨行，避免误匹配块级公式内部
+  text = text.replace(/(?<![\$\\])\$(?!\$)([^\n]+?)(?<!\$)\$(?!\$)/g, (match, _content, offset, full) => {
+    // 检查 $ 外侧是否需要补空格
+    const beforeChar = offset > 0 ? full[offset - 1] : ''
+    const afterChar = offset + match.length < full.length ? full[offset + match.length] : ''
+    const needPrefix = beforeChar && !/\s/.test(beforeChar)
+    const needSuffix = afterChar && !/\s/.test(afterChar)
+    return `${needPrefix ? ' ' : ''}${match}${needSuffix ? ' ' : ''}`
+  })
+
+  if (text !== original) {
+    form.content = text
+    showToast('已格式化公式')
+  } else {
+    showToast('无需格式化')
+  }
 }
 
 function triggerUpload() {
