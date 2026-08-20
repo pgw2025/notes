@@ -14,11 +14,11 @@
             @click="form.isPinned = !form.isPinned"
           />
           <!-- P2-1 大纲按钮 -->
-          <van-icon name="ordered-list" size="20" class="nav-icon" title="大纲 (Ctrl+Shift+O)" @click="showOutline = !showOutline" />
+          <span class="nav-icon nav-char-btn" title="大纲 (Ctrl+Shift+O)" @click="showOutline = !showOutline">☰</span>
           <!-- P2-2 搜索按钮 -->
-          <van-icon name="search" size="20" class="nav-icon" title="搜索替换 (Ctrl+F)" @click="openSearch" />
+          <span class="nav-icon nav-char-btn" title="搜索替换 (Ctrl+F)" @click="openSearch">🔍</span>
           <!-- P2-3 全屏按钮 -->
-          <van-icon :name="isFullscreen ? 'fail' : 'fullscreen'" size="20" class="nav-icon" :title="isFullscreen ? '退出全屏 (Esc)' : '全屏编辑'" @click="toggleFullscreen" />
+          <span class="nav-icon nav-char-btn" :title="isFullscreen ? '退出全屏 (Esc)' : '全屏编辑'" @click="toggleFullscreen">{{ isFullscreen ? '⤢' : '⛶' }}</span>
           <van-icon name="edit" size="20" class="color-icon" @click="showColorPicker = true" />
           <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
         </div>
@@ -1314,6 +1314,18 @@ onUnmounted(() => {
   transition: opacity 0.15s, color 0.15s;
 }
 .nav-icon:hover { opacity: 1; color: #1989fa; }
+.nav-char-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 17px;
+  line-height: 1;
+  user-select: none;
+  color: inherit;
+}
+.nav-char-btn:hover { color: #1989fa; }
 .color-icon {
   cursor: pointer;
 }
