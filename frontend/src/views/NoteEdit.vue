@@ -375,6 +375,28 @@ const mobileFileInput = ref(null)
 // ========== P0-1 草稿自动保存 ==========
 const draftKey = computed(() => `note_draft/${noteId.value || 'new'}`)
 const hasUnsavedChanges = ref(false)
+// 服务器端保存快照：保存成功后写入，返回时以此为准判断是否有未保存改动
+const lastSavedSnapshot = ref('')
+
+function snapshotForm() {
+  return JSON.stringify({
+    title: form.title,
+    content: form.content,
+    categoryId: form.categoryId,
+    tagIds: form.tagIds,
+    backgroundColor: form.backgroundColor,
+    isPinned: form.isPinned
+  })
+}
+function isDirty() {
+  if (hasUnsavedChanges.value) return true
+  const cur = snapshotForm()
+  // 新建笔记：既没有保存过，也没有任何内容 → 不算脏
+  if (!lastSavedSnapshot.value && !form.title.trim() && !form.content.trim()) return false
+  // 新建笔记但有内容 → 算脏（需要提醒保存/丢弃）
+  if (!lastSavedSnapshot.value) return !!(form.title.trim() || form.content.trim())
+  return cur !== lastSavedSnapshot.value
+}
 
 function debounce(fn, wait = 300) {
   let timer = null
@@ -961,17 +983,19 @@ async function loadData() {
   let serverUpdatedAt = 0
 
   if (isEdit.value) {
-    const note = await http.get(`/notes/${noteId.value}`)
-    form.title = note.title
-    form.content = note.content
-    form.categoryId = note.categoryId
-    form.isPinned = note.isPinned || false
-    form.tagIds = (note.tags || [])
-      .map((name) => tags.value.find((t) => t.name === name)?.id)
-      .filter(Boolean)
-    form.backgroundColor = note.backgroundColor || null
-    serverUpdatedAt = note.updatedAt ? new Date(note.updatedAt).getTime() : 0
-  }
+      const note = await http.get(`/notes/${noteId.value}`)
+      form.title = note.title
+      form.content = note.content
+      form.categoryId = note.categoryId
+      form.isPinned = note.isPinned || false
+      form.tagIds = (note.tags || [])
+        .map((name) => tags.value.find((t) => t.name === name)?.id)
+        .filter(Boolean)
+      form.backgroundColor = note.backgroundColor || null
+      // 记录服务器端初始快照：用于判断后续是否真正有改动
+      lastSavedSnapshot.value = snapshotForm()
+      serverUpdatedAt = note.updatedAt ? new Date(note.updatedAt).getTime() : 0
+    }
 
   if (draft && (draft.title || draft.content)) {
     const needAsk = !isEdit.value
@@ -1189,23 +1213,29 @@ async function onSave() {
       const created = await http.post('/notes', payload)
       showToast('已创建')
       clearDraft()
+      // 新笔记创建成功也记录快照 + 跳转后不再触发脏判断
+      lastSavedSnapshot.value = snapshotForm()
       router.replace(`/notes/${created.id}/edit`)
       return
     }
     clearDraft()
+    // 保存成功：更新快照，下次返回直接放行不再弹窗
+    lastSavedSnapshot.value = snapshotForm()
   } finally {
     saving.value = false
   }
 }
 
 async function onBack() {
-  if (hasUnsavedChanges.value || form.title.trim() || form.content.trim()) {
+  // 仅当真正有未保存改动时才拦截，避免"已保存但内容非空"误弹窗
+  if (isDirty()) {
+    const draftPending = hasUnsavedChanges.value
     try {
       await showConfirmDialog({
-        title: hasUnsavedChanges.value ? '内容尚未保存' : '提示',
-        message: hasUnsavedChanges.value
+        title: draftPending ? '内容尚未保存' : '提示',
+        message: draftPending
           ? '有未保存的内容，离开后会保留为草稿，下次进入可恢复。确定离开吗？'
-          : '尚未保存，确定离开吗？',
+          : '还有未保存的改动，确定离开吗？',
         confirmButtonText: '离开',
         cancelButtonText: '继续编辑'
       })
