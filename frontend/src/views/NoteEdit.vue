@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page" :class="{ 'page--fullscreen': isFullscreen }">
     <van-nav-bar
       :title="navTitle"
       left-arrow
@@ -13,6 +13,12 @@
             :color="form.isPinned ? '#ff976a' : undefined"
             @click="form.isPinned = !form.isPinned"
           />
+          <!-- P2-1 大纲按钮 -->
+          <van-icon name="ordered-list" size="20" class="nav-icon" title="大纲 (Ctrl+Shift+O)" @click="showOutline = !showOutline" />
+          <!-- P2-2 搜索按钮 -->
+          <van-icon name="search" size="20" class="nav-icon" title="搜索替换 (Ctrl+F)" @click="openSearch" />
+          <!-- P2-3 全屏按钮 -->
+          <van-icon :name="isFullscreen ? 'fail' : 'fullscreen'" size="20" class="nav-icon" :title="isFullscreen ? '退出全屏 (Esc)' : '全屏编辑'" @click="toggleFullscreen" />
           <van-icon name="edit" size="20" class="color-icon" @click="showColorPicker = true" />
           <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
         </div>
@@ -95,7 +101,7 @@
               @mouseup="onTextSelect"
               @touchend="onTouchEnd"
               @focus="onTextareaFocus"
-              @scroll="hideFloatingBar"
+              @scroll="onTextareaScroll"
               @blur="onTextareaBlur"
               @paste.capture="onPaste"
             ></textarea>
@@ -127,6 +133,64 @@
                   <span style="font-family:monospace;font-size:13px">&lt;/&gt;</span>
                 </button>
                 <button class="ft-btn" type="button" title="链接 (Ctrl+K)" @click="applyFloat('link')">🔗</button>
+              </div>
+            </transition>
+
+            <!-- =============== P2-2 搜索 & 替换面板 =============== -->
+            <transition name="float-fade">
+              <div v-show="showSearch" class="search-panel" @mousedown.stop>
+                <div class="search-row">
+                  <input
+                    v-model="searchKeyword"
+                    class="search-input"
+                    type="text"
+                    placeholder="查找 (支持正则)"
+                    @input="ensureMatchesComputed"
+                    @keydown.enter.prevent="searchNext"
+                    @keydown.esc.prevent="closeSearch"
+                  />
+                  <span class="search-count" :title="`共 ${matches.length} 处`">
+                    {{ matches.length === 0 ? '0/0' : `${currentMatchIdx + 1}/${matches.length}` }}
+                  </span>
+                  <button type="button" class="sp-btn" title="上一个 (Shift+Enter)" @click="searchPrev">▲</button>
+                  <button type="button" class="sp-btn" title="下一个 (Enter)" @click="searchNext">▼</button>
+                  <button type="button" class="sp-btn sp-close" title="关闭 (Esc)" @click="closeSearch">✕</button>
+                </div>
+                <div class="search-row search-row-2">
+                  <button
+                    type="button"
+                    class="sp-toggle"
+                    :class="{ active: useRegex }"
+                    title="正则模式"
+                    @click="useRegex = !useRegex"
+                  >.*</button>
+                  <button
+                    type="button"
+                    class="sp-toggle"
+                    :class="{ active: matchCase }"
+                    title="区分大小写"
+                    @click="matchCase = !matchCase"
+                  >Aa</button>
+                  <input
+                    v-model="replaceText"
+                    class="search-input replace-input"
+                    type="text"
+                    placeholder="替换为"
+                    @keydown.enter.prevent="doReplace"
+                  />
+                  <button
+                    type="button"
+                    class="sp-btn sp-primary"
+                    :disabled="matches.length === 0"
+                    @click="doReplace"
+                  >替换</button>
+                  <button
+                    type="button"
+                    class="sp-btn sp-primary"
+                    :disabled="matches.length === 0"
+                    @click="doReplaceAll"
+                  >全部</button>
+                </div>
               </div>
             </transition>
           </div>
@@ -166,6 +230,37 @@
         </div>
       </div>
     </div>
+
+    <!-- =============== P2-1 大纲面板（右侧抽屉） =============== -->
+    <transition name="slide-right">
+      <div v-show="showOutline" class="outline-mask" @click.self="showOutline = false">
+        <aside class="outline-panel" :style="{ background: effectiveBg, color: textColor }" @mousedown.stop>
+          <div class="outline-header" :style="{ borderColor: metaBorderColor }">
+            <span class="outline-title">📑 大纲</span>
+            <button type="button" class="sp-btn sp-close" @click="showOutline = false">✕</button>
+          </div>
+          <div v-if="outlineList.length === 0" class="outline-empty" :style="{ color: subTextColor }">
+            暂无标题，使用 <b># / ## / ###</b> 来组织内容
+          </div>
+          <ul v-else class="outline-list">
+            <li
+              v-for="(h, i) in outlineList"
+              :key="'h-'+i"
+              class="outline-item"
+              :class="[
+                'outline-level-'+h.level,
+                { active: i === activeHeadingIdx }
+              ]"
+              :style="(i === activeHeadingIdx ? { borderColor: '#1989fa', color: '#1989fa' } : {})"
+              @click="scrollToHeading(i)"
+            >
+              <span class="outline-dot" :style="(i === activeHeadingIdx ? { background: '#1989fa' } : { background: subTextColor })"></span>
+              <span class="outline-text">{{ h.text || '(空标题)' }}</span>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </transition>
 
     <!-- 分类选择 -->
     <van-popup v-model:show="showCategoryPicker" position="bottom" round>
@@ -562,22 +657,278 @@ const mobileToolbarStyle = computed(() => {
   }
 })
 
-// =============== P1-7 键盘快捷键（桌面端） ===============
+// =============== P2-1 大纲导航 ===============
+const showOutline = ref(false)
+const activeHeadingIdx = ref(0)
+
+/**
+ * 解析 Markdown 标题（ATX 风格：在行首匹配 1~6 个 # 后接空格）
+ * 排除出现在代码块或引用块中的 #。实现：逐行扫描 + inFence/inBlockquote 状态机，
+ * 只接受"真正的行首"（之前是换行/文本起始）、非 ``` 代码块内、且非 > 引用行首的标题。
+ */
+const outlineList = computed(() => {
+  const text = form.content || ''
+  const result = []
+  let inFence = false
+  const lines = text.split(/\r?\n/)
+  let offset = 0 // 累积字符 offset（包含换行），用于后续 scrollToHeading 精确定位
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const lineStartOffset = offset
+    // 代码块围栏检测（``` 或 ~~~）
+    const fenceMatch = line.match(/^\s*(```|~~~)/)
+    if (fenceMatch && !line.slice(fenceMatch[0].length).includes(fenceMatch[1])) {
+      inFence = !inFence
+    }
+    if (!inFence) {
+      const m = line.match(/^(#{1,6})(?:\s+)(.*)$/)
+      if (m) {
+        const level = m[1].length
+        const rawText = m[2].replace(/\s*#+\s*$/, '').trim() // 去掉闭合 #
+        result.push({
+          level,
+          text: rawText,
+          offset: lineStartOffset,
+          line: i
+        })
+      }
+    }
+    offset += line.length + 1 // +1 表示换行符
+  }
+  return result
+})
+
+function scrollToHeading(idx) {
+  const ta = textareaRef.value
+  if (!ta) return
+  const h = outlineList.value[idx]
+  if (!h) return
+  activeHeadingIdx.value = idx
+  // 用镜像 div 算出该标题行首的像素位置 → 滚动到顶部再留一点上边距
+  const px = getCaretPixel(h.offset)
+  const targetTop = (px.taTopInWrap || 0) + px.top - 24
+  ta.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+  ta.focus()
+  ta.setSelectionRange(h.offset, h.offset)
+}
+
+function updateActiveHeading() {
+  const ta = textareaRef.value
+  if (!ta || outlineList.value.length === 0) return
+  const viewTop = ta.scrollTop
+  // 找最后一个「标题像素位置 <= viewport 顶部 + 40」的标题作为当前
+  let bestIdx = 0
+  for (let i = 0; i < outlineList.value.length; i++) {
+    const px = getCaretPixel(outlineList.value[i].offset)
+    const rel = (px.taTopInWrap || 0) + px.top
+    // 相对 textarea 的内容可视区顶部：px.top 是相对 wrap，但 textarea 的 scroll 把上方内容挤出可视区
+    // 简化做法：offset 对应字符 offset，scrollTop 近似正比；用镜像 + scrollTop 同步后取 marker.top - ta.top
+    const taRect = ta.getBoundingClientRect()
+    const wrapRect = ta.parentElement.getBoundingClientRect()
+    const absTop = (px.taTopInWrap || 0) + px.top - (taRect.top - wrapRect.top) + ta.scrollTop
+    if (absTop <= viewTop + 36) bestIdx = i
+    else break
+  }
+  activeHeadingIdx.value = bestIdx
+}
+
+function onTextareaScroll() {
+  hideFloatingBar()
+  // P2-1: 滚动时更新大纲高亮（节流 30ms）
+  if (_scrollTimer) clearTimeout(_scrollTimer)
+  _scrollTimer = setTimeout(updateActiveHeading, 30)
+}
+let _scrollTimer = null
+
+// =============== P2-2 搜索 & 替换 ===============
+const showSearch = ref(false)
+const searchKeyword = ref('')
+const replaceText = ref('')
+const useRegex = ref(false)
+const matchCase = ref(false)
+const currentMatchIdx = ref(0)
+
+/** 把 matches 作为副作用触发计算（Vue 计算属性在模板中访问时会懒求值，
+ *  这里把"匹配结果数组"和"当前 index"拆包出来，以便搜索框输入时实时高亮定位） */
+const matches = computed(() => {
+  const kw = searchKeyword.value
+  const text = form.content || ''
+  if (!kw) return []
+  let re
+  try {
+    const flags = (matchCase.value ? '' : 'i') + 'g'
+    if (useRegex.value) re = new RegExp(kw, flags)
+    else {
+      // 非正则模式：转义特殊字符
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      re = new RegExp(escaped, flags)
+    }
+  } catch { return [] }
+  const res = []
+  let m
+  while ((m = re.exec(text)) !== null) {
+    res.push({ start: m.index, end: m.index + m[0].length, text: m[0] })
+    if (m[0].length === 0) re.lastIndex++ // 避免零宽死循环
+  }
+  return res
+})
+
+function ensureMatchesComputed() {
+  // 仅为了触发 matches computed 在输入时立即重算（不依赖模板访问时机）
+  void matches.value
+  if (matches.value.length > 0) {
+    // 若当前索引超出，重置到最后一个
+    if (currentMatchIdx.value >= matches.value.length) {
+      currentMatchIdx.value = matches.value.length - 1
+    }
+    scrollToMatch(currentMatchIdx.value)
+  }
+}
+
+function openSearch() {
+  showSearch.value = true
+  nextTick(() => {
+    const el = document.querySelector('.search-input')
+    if (el) { el.focus(); (el).select() }
+  })
+}
+function closeSearch() {
+  showSearch.value = false
+  currentMatchIdx.value = 0
+  searchKeyword.value = ''
+  replaceText.value = ''
+}
+
+function scrollToMatch(idx) {
+  const ta = textareaRef.value
+  if (!ta || !matches.value[idx]) return
+  const { start, end } = matches.value[idx]
+  // 把当前 match 滚到可视区中上位置
+  const px = getCaretPixel(start)
+  const taRect = ta.getBoundingClientRect()
+  const wrapRect = ta.parentElement.getBoundingClientRect()
+  const contentY = (px.taTopInWrap || 0) + px.top - (taRect.top - wrapRect.top) + ta.scrollTop
+  ta.scrollTo({ top: Math.max(0, contentY - ta.clientHeight / 3), behavior: 'smooth' })
+  ta.focus()
+  nextTick(() => ta.setSelectionRange(start, end))
+}
+function searchNext() {
+  if (matches.value.length === 0) return
+  currentMatchIdx.value = (currentMatchIdx.value + 1) % matches.value.length
+  scrollToMatch(currentMatchIdx.value)
+}
+function searchPrev() {
+  if (matches.value.length === 0) return
+  currentMatchIdx.value = (currentMatchIdx.value - 1 + matches.value.length) % matches.value.length
+  scrollToMatch(currentMatchIdx.value)
+}
+
+function doReplace() {
+  if (matches.value.length === 0) return
+  const m = matches.value[currentMatchIdx.value]
+  if (!m) return
+  const before = form.content.substring(0, m.start)
+  const after = form.content.substring(m.end)
+  form.content = before + replaceText.value + after
+  nextTick(() => {
+    ensureMatchesComputed()
+    if (matches.value.length > 0) {
+      // 跳到下一个（若当前已经是末尾则重置到第 0 个）
+      if (currentMatchIdx.value >= matches.value.length) currentMatchIdx.value = 0
+      scrollToMatch(currentMatchIdx.value)
+    }
+  })
+  showToast('已替换 1 处')
+}
+
+function doReplaceAll() {
+  const total = matches.value.length
+  if (total === 0) return
+  const kw = searchKeyword.value
+  try {
+    const flags = (matchCase.value ? '' : 'i') + 'g'
+    const re = useRegex.value ? new RegExp(kw, flags) : new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags)
+    form.content = form.content.replace(re, replaceText.value)
+    showToast(`已替换 ${total} 处`)
+    currentMatchIdx.value = 0
+  } catch {
+    showToast('正则语法错误')
+  }
+}
+
+// =============== P2-3 全屏沉浸式编辑 ===============
+const isFullscreen = ref(false)
+
+function toggleFullscreen() {
+  const doc = document
+  if (!doc.fullscreenElement) {
+    const target = doc.documentElement
+    const req = target.requestFullscreen || (target).webkitRequestFullscreen || (target).msRequestFullscreen
+    if (req) req.call(target).catch(() => showToast('当前浏览器不支持全屏'))
+    else showToast('当前浏览器不支持全屏')
+  } else {
+    const exit = doc.exitFullscreen || (doc).webkitExitFullscreen || (doc).msExitFullscreen
+    if (exit) exit.call(doc)
+  }
+}
+function onFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+// =============== P1-7 键盘快捷键（桌面端） — 扩展 P2 的快捷键 ===============
 function onKeyDown(e) {
   const ta = textareaRef.value
   if (!ta) return
   const mod = e.metaKey || e.ctrlKey
-  if (!mod) return
   const k = e.key.toLowerCase()
-  if (k === 's' && !e.shiftKey) {
-    e.preventDefault()
-    onSave()
-    return
+
+  // Esc 优先处理：关闭搜索/大纲或退出全屏
+  if (e.key === 'Escape') {
+    if (showSearch.value) { closeSearch(); e.preventDefault(); return }
+    if (showOutline.value) { showOutline.value = false; e.preventDefault(); return }
+    if (isFullscreen.value) {
+      const doc = document
+      if (doc.fullscreenElement) {
+        const exit = doc.exitFullscreen || (doc).webkitExitFullscreen || (doc).msExitFullscreen
+        if (exit) exit.call(doc)
+      }
+      e.preventDefault()
+      return
+    }
   }
-  if (k === 'b') { e.preventDefault(); applyFloat('bold'); return }
-  if (k === 'i') { e.preventDefault(); applyFloat('italic'); return }
-  if (k === 'k') { e.preventDefault(); applyFloat('link'); return }
-  if (k === 's' && e.shiftKey) { e.preventDefault(); applyFloat('strike'); return }
+
+  if (mod) {
+    if (k === 'f') {
+      // 打开搜索（Ctrl/Cmd+F 拦截浏览器默认页内搜索）
+      e.preventDefault()
+      openSearch()
+      return
+    }
+    if (k === 's' && !e.shiftKey) {
+      e.preventDefault()
+      onSave()
+      return
+    }
+    if (e.shiftKey && k === 'o') {
+      // Ctrl+Shift+O 切换大纲
+      e.preventDefault()
+      showOutline.value = !showOutline.value
+      return
+    }
+    if (k === 'b') { e.preventDefault(); applyFloat('bold'); return }
+    if (k === 'i') { e.preventDefault(); applyFloat('italic'); return }
+    if (k === 'k') { e.preventDefault(); applyFloat('link'); return }
+    if (k === 's' && e.shiftKey) { e.preventDefault(); applyFloat('strike'); return }
+  }
+
+  // 搜索面板内部：Shift+Enter → 上一个；Enter → 下一个
+  if (showSearch.value) {
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault()
+      searchPrev()
+      return
+    }
+  }
 }
 
 async function loadData() {
@@ -850,12 +1201,13 @@ async function onBack() {
 
 // =============== 生命周期 & 全局事件 ===============
 let _keydownHandler = null
+let _docKeydownHandler = null
 
 onMounted(() => {
   updateDocumentTitle()
   loadData()
 
-  // P1-7 桌面端快捷键（挂在 textarea 上，避免全局冲突）
+  // P1-7 + P2：textarea 范围内快捷键（处理修饰键组合等）
   nextTick(() => {
     const ta = textareaRef.value
     if (ta) {
@@ -864,6 +1216,29 @@ onMounted(() => {
     }
   })
 
+  // P2：文档级快捷键拦截（Ctrl+F / Esc / Ctrl+Shift+O 可以不在 textarea focus 时触发）
+  _docKeydownHandler = (e) => {
+    const mod = e.metaKey || e.ctrlKey
+    const k = e.key.toLowerCase()
+    if (e.key === 'Escape') {
+      // 交给 onKeyDown，但需要手动调用一次来处理面板关闭/退出全屏（当焦点不在 textarea）
+      const ta = textareaRef.value
+      if (document.activeElement !== ta) onKeyDown(e)
+    }
+    if (mod && k === 'f') {
+      // 只有当焦点不在浏览器原生搜索输入时拦截
+      const tag = (document.activeElement?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea') return // 由元素上监听器处理
+      e.preventDefault()
+      openSearch()
+    }
+    if (mod && e.shiftKey && k === 'o') {
+      e.preventDefault()
+      showOutline.value = !showOutline.value
+    }
+  }
+  document.addEventListener('keydown', _docKeydownHandler)
+
   // P1-6 软键盘高度监听
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', onViewportChange)
@@ -871,13 +1246,22 @@ onMounted(() => {
   }
   window.addEventListener('resize', onViewportChange)
 
-  // 点击外部关闭浮动工具栏
+  // 点击外部关闭浮动工具栏 / 大纲面板 / 搜索面板
   document.addEventListener('mousedown', (e) => {
     const ta = textareaRef.value
     const wrap = ta?.parentElement
-    if (!wrap) return
-    if (!wrap.contains(e.target)) hideFloatingBar()
+    if (wrap && !wrap.contains(e.target)) hideFloatingBar()
+
+    const outline = document.querySelector('.outline-panel')
+    if (showOutline.value && outline && !outline.contains(e.target) && !(e.target).closest?.('.nav-icon')) {
+      // 不在这里直接关，避免和按钮的 click 冲突：交给各自 click self mask 处理
+    }
   })
+
+  // P2-3 全屏事件
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+  document.addEventListener('msfullscreenchange', onFullscreenChange)
 })
 
 onUnmounted(() => {
@@ -894,13 +1278,22 @@ onUnmounted(() => {
     textareaRef.value.removeEventListener('keydown', _keydownHandler)
     _keydownHandler = null
   }
+  if (_docKeydownHandler) {
+    document.removeEventListener('keydown', _docKeydownHandler)
+    _docKeydownHandler = null
+  }
   // 清理键盘高度监听
   if (window.visualViewport) {
     window.visualViewport.removeEventListener('resize', onViewportChange)
     window.visualViewport.removeEventListener('scroll', onViewportChange)
   }
   window.removeEventListener('resize', onViewportChange)
+  // 清理全屏监听
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+  document.removeEventListener('msfullscreenchange', onFullscreenChange)
   dragOver.value = false
+  if (_scrollTimer) clearTimeout(_scrollTimer)
 })
 </script>
 
@@ -915,6 +1308,12 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
 }
+.nav-icon {
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s, color 0.15s;
+}
+.nav-icon:hover { opacity: 1; color: #1989fa; }
 .color-icon {
   cursor: pointer;
 }
@@ -1148,6 +1547,223 @@ onUnmounted(() => {
 /* 深色背景下：移动端吸底工具栏保持浅色毛玻璃 */
 :deep(.page) .mobile-toolbar {
   background: rgba(255, 255, 255, 0.92);
+}
+
+/* ============ P2-2 搜索 & 替换面板 ============ */
+.search-panel {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  z-index: 40;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #ebedf0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+@media (prefers-color-scheme: dark) {
+  .search-panel { background: #2c2f36; border-color: rgba(255,255,255,0.1); }
+  .search-input { background: #1f2329; color: #eee; border-color: rgba(255,255,255,0.15); }
+  .search-count { color: #bbb; }
+}
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.search-row-2 {
+  padding-top: 2px;
+  border-top: 1px dashed #ebedf0;
+}
+.search-input {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #dcdee0;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+.search-input:focus { border-color: #1989fa; }
+.replace-input { flex: 1 1 50%; }
+.search-count {
+  min-width: 48px;
+  text-align: center;
+  font-size: 12px;
+  color: #969799;
+  letter-spacing: 0.3px;
+}
+.sp-btn {
+  min-width: 28px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #ebedf0;
+  background: #f7f8fa;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
+}
+.sp-btn:hover:not(:disabled) { background: #eef0f3; border-color: #dcdee0; }
+.sp-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sp-btn.sp-close { color: #c8c9cc; background: transparent; border-color: transparent; }
+.sp-btn.sp-close:hover { color: #ee0a24; background: rgba(238, 10, 36, 0.06); }
+.sp-btn.sp-primary { background: #1989fa; color: #fff; border-color: #1989fa; }
+.sp-btn.sp-primary:hover:not(:disabled) { background: #0f7ae5; border-color: #0f7ae5; }
+.sp-toggle {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #ebedf0;
+  background: #f7f8fa;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  transition: all 0.12s;
+}
+.sp-toggle.active {
+  background: #e8f3ff;
+  border-color: #1989fa;
+  color: #1989fa;
+}
+
+/* ============ P2-1 大纲面板 ============ */
+.outline-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  justify-content: flex-end;
+}
+.outline-panel {
+  width: min(320px, 86vw);
+  max-width: 100%;
+  height: 100%;
+  box-shadow: -6px 0 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.outline-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid;
+}
+.outline-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.outline-empty {
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.outline-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 16px 8px 20px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  user-select: none;
+}
+.outline-item:hover { background: rgba(25, 137, 250, 0.06); }
+.outline-item.active { background: rgba(25, 137, 250, 0.08); border-left: 3px solid #1989fa; padding-left: 19px; }
+.outline-level-1 { padding-left: 16px; font-weight: 600; font-size: 14.5px; }
+.outline-level-2 { padding-left: 32px; }
+.outline-level-3 { padding-left: 48px; font-size: 13.5px; opacity: 0.9; }
+.outline-level-4 { padding-left: 64px; font-size: 13px; opacity: 0.85; }
+.outline-level-5 { padding-left: 80px; font-size: 13px; opacity: 0.8; }
+.outline-level-6 { padding-left: 96px; font-size: 13px; opacity: 0.75; }
+.outline-item.active.outline-level-1,
+.outline-item.active.outline-level-2,
+.outline-item.active.outline-level-3,
+.outline-item.active.outline-level-4,
+.outline-item.active.outline-level-5,
+.outline-item.active.outline-level-6 { padding-left: calc(16px + 16px * (attr(class) - 1) - 1px); }
+.outline-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 8px;
+}
+.outline-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 进入：从右滑入 + 背景渐显 */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: opacity 0.22s ease;
+}
+.slide-right-enter-active .outline-panel,
+.slide-right-leave-active .outline-panel {
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to { opacity: 0; }
+.slide-right-enter-from .outline-panel,
+.slide-right-leave-to .outline-panel { transform: translateX(100%); }
+
+/* ============ P2-3 全屏模式 ============ */
+.page.page--fullscreen {
+  max-width: none !important;
+  min-height: 100vh !important;
+  border-left: none !important;
+  border-right: none !important;
+  margin: 0 !important;
+}
+.page--fullscreen :deep(.van-nav-bar) { display: none; }
+.page--fullscreen .editor {
+  padding: 0 !important;
+  min-height: 100vh;
+}
+.page--fullscreen .meta-row,
+.page--fullscreen .title-field {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.page--fullscreen .editor-body {
+  min-height: calc(100vh - 88px);
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+.page--fullscreen .preview-label { display: none; }
+.page--fullscreen .content-area {
+  font-size: 16px;
+  line-height: 1.8;
 }
 
 /* 桌面端：编辑/预览并排显示 */
