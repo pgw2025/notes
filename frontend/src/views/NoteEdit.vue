@@ -1227,21 +1227,42 @@ async function onSave() {
 }
 
 async function onBack() {
-  // 仅当真正有未保存改动时才拦截，避免"已保存但内容非空"误弹窗
-  if (isDirty()) {
-    const draftPending = hasUnsavedChanges.value
-    try {
-      await showConfirmDialog({
-        title: draftPending ? '内容尚未保存' : '提示',
-        message: draftPending
-          ? '有未保存的内容，离开后会保留为草稿，下次进入可恢复。确定离开吗？'
-          : '还有未保存的改动，确定离开吗？',
-        confirmButtonText: '离开',
-        cancelButtonText: '继续编辑'
-      })
-    } catch {
-      return
+  // 完全没内容：直接离开，不调用保存（接口会拒绝标题+内容同时为空）
+  const blank = !form.title.trim() && !form.content.trim()
+  if (blank || !isDirty()) {
+    router.back()
+    return
+  }
+  // 有内容/有改动：自动保存后再返回，不再弹窗询问
+  try {
+    saving.value = true
+    const payload = {
+      title: form.title.trim(),
+      content: form.content,
+      categoryId: form.categoryId,
+      tagIds: form.tagIds,
+      backgroundColor: form.backgroundColor || '',
+      isPinned: form.isPinned
     }
+    if (isReallyEdit.value) {
+      await http.put(`/notes/${effectiveNoteId.value}`, payload)
+    } else {
+      const created = await http.post('/notes', payload)
+      clearDraft()
+      lastSavedSnapshot.value = snapshotForm()
+      // 新建笔记：先 replace 到 edit 路径，对齐编辑态；之后统一 router.back
+      // 但新建笔记直接返回列表更符合预期，这里不 replace，改完快照直接返回
+      form.id = created.id
+    }
+    clearDraft()
+    lastSavedSnapshot.value = snapshotForm()
+  } catch (e) {
+    // 保存失败：提示并中止返回，避免丢内容
+    showToast('保存失败，未离开')
+    saving.value = false
+    return
+  } finally {
+    saving.value = false
   }
   router.back()
 }
