@@ -2255,6 +2255,34 @@ onUnmounted(() => {
   border-left: none !important;
   border-right: none !important;
 }
+
+/* 移动端全屏：沉浸式编辑 — 隐藏标题 / 分类 / 标签 / 编辑预览 Tabs
+   仅保留沉浸导航条 + 正文 textarea，最大化编辑可视区 */
+@media (max-width: 1023px) {
+  .page--fullscreen .title-field { display: none !important; }
+  .page--fullscreen .meta-row,
+  .page--fullscreen .meta-row--chips { display: none !important; }
+  .page--fullscreen .toolbar-wrap { display: none !important; }
+
+  .page--fullscreen .editor-body {
+    min-height: calc(100vh - 44px - 38px); /* 沉浸导航条 + 移动工具栏沉浸高度 */
+    padding: 0;
+  }
+  .page--fullscreen .edit-area,
+  .page--fullscreen .textarea-wrap,
+  .page--fullscreen .content-area {
+    min-height: calc(100vh - 44px - 38px) !important;
+    height: calc(100vh - 44px - 38px) !important;
+  }
+  .page--fullscreen .word-count { padding: 4px 12px 6px; }
+  /* 沉浸条 + 正文：去掉所有内边距，文字顶对齐 */
+  .page--fullscreen .editor { padding-top: 0 !important; }
+  .page--fullscreen .content-area {
+    padding: 16px 16px 32px !important;
+    font-size: 16px !important;
+    line-height: 1.75 !important;
+  }
+}
 .page--fullscreen .preview-label { display: none; }
 .page--fullscreen .content-area {
   font-size: 16px;
