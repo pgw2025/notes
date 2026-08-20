@@ -194,10 +194,29 @@
               </div>
             </transition>
 
-            <!-- =============== P2-2 搜索 & 替换面板 =============== -->
+            <!-- =============== P2-2 搜索 & 替换面板（可拖动） =============== -->
             <transition name="float-fade">
-              <div v-show="showSearch" class="search-panel" @mousedown.stop>
+              <div
+                v-show="showSearch"
+                ref="searchPanelRef"
+                class="search-panel"
+                :class="{ 'is-dragging': searchDragDragging }"
+                :style="searchPanelStyle"
+                @mousedown.stop
+              >
                 <div class="search-row">
+                  <!-- 拖拽把手：6 点阵，移动/鼠标都能拖 -->
+                  <span
+                    class="sp-drag-handle"
+                    title="拖动移动面板"
+                    @pointerdown="onSearchDragStart"
+                  >
+                    <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true">
+                      <circle cx="3" cy="3" r="1.3" fill="currentColor"/><circle cx="7" cy="3" r="1.3" fill="currentColor"/><circle cx="11" cy="3" r="1.3" fill="currentColor"/>
+                      <circle cx="3" cy="7" r="1.3" fill="currentColor"/><circle cx="7" cy="7" r="1.3" fill="currentColor"/><circle cx="11" cy="7" r="1.3" fill="currentColor"/>
+                      <circle cx="3" cy="11" r="1.3" fill="currentColor"/><circle cx="7" cy="11" r="1.3" fill="currentColor"/><circle cx="11" cy="11" r="1.3" fill="currentColor"/>
+                    </svg>
+                  </span>
                   <input
                     v-model="searchKeyword"
                     class="search-input"
@@ -471,6 +490,65 @@ const showColorPicker = ref(false)
 const textareaRef = ref(null)
 const fileInput = ref(null)
 const mobileFileInput = ref(null)
+// ========== 搜索面板拖动 ==========
+const searchPanelRef = ref(null)
+const searchDragX = ref(null)
+const searchDragY = ref(null)
+const searchDragDragging = ref(false)
+let searchDragOffsetX = 0
+let searchDragOffsetY = 0
+let searchDragPointerId = null
+const searchPanelStyle = computed(() => {
+  if (searchDragX.value == null || searchDragY.value == null) return {}
+  return {
+    left: `${searchDragX.value}px`,
+    top: `${searchDragY.value}px`,
+    right: 'auto'
+  }
+})
+function onSearchDragStart(e) {
+  const panel = searchPanelRef.value
+  if (!panel) return
+  const panelRect = panel.getBoundingClientRect()
+  searchDragDragging.value = true
+  searchDragOffsetX = e.clientX - panelRect.left
+  searchDragOffsetY = e.clientY - panelRect.top
+  searchDragPointerId = e.pointerId
+  try { e.target.setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
+  e.preventDefault()
+  e.stopPropagation()
+  document.addEventListener('pointermove', onSearchDragMove, true)
+  document.addEventListener('pointerup', onSearchDragEnd, true)
+  document.addEventListener('pointercancel', onSearchDragEnd, true)
+}
+function onSearchDragMove(e) {
+  if (!searchDragDragging.value) return
+  const panel = searchPanelRef.value
+  const container = panel?.parentElement
+  if (!panel || !container) return
+  const cRect = container.getBoundingClientRect()
+  const panelW = panel.offsetWidth
+  const panelH = panel.offsetHeight
+  let nx = e.clientX - cRect.left - searchDragOffsetX
+  let ny = e.clientY - cRect.top - searchDragOffsetY
+  const padX = 6
+  const padY = 6
+  nx = Math.max(padX, Math.min(nx, Math.max(padX, cRect.width - panelW - padX)))
+  ny = Math.max(padY, Math.min(ny, Math.max(padY, cRect.height - panelH - padY)))
+  searchDragX.value = nx
+  searchDragY.value = ny
+  e.preventDefault()
+}
+function onSearchDragEnd(e) {
+  if (searchDragPointerId != null) {
+    try { e.target.releasePointerCapture?.(searchDragPointerId) } catch { /* ignore */ }
+  }
+  searchDragDragging.value = false
+  searchDragPointerId = null
+  document.removeEventListener('pointermove', onSearchDragMove, true)
+  document.removeEventListener('pointerup', onSearchDragEnd, true)
+  document.removeEventListener('pointercancel', onSearchDragEnd, true)
+}
 
 // ========== P0-1 草稿自动保存 ==========
 const draftKey = computed(() => `note_draft/${noteId.value || 'new'}`)
@@ -967,6 +1045,9 @@ function closeSearch() {
   currentMatchIdx.value = 0
   searchKeyword.value = ''
   replaceText.value = ''
+  // 关闭后重置位置，下一次打开回到默认的右上角
+  searchDragX.value = null
+  searchDragY.value = null
 }
 
 function scrollToMatch(idx) {
@@ -2041,6 +2122,7 @@ onUnmounted(() => {
   right: 16px;
   z-index: 40;
   min-width: 320px;
+  max-width: calc(100% - 32px); /* 即使桌面，也不会被容器硬撑溢出 */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2049,21 +2131,57 @@ onUnmounted(() => {
   border: 1px solid #ebedf0;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* 拖动时禁用过渡/动画，避免跟随不流畅 */
+  touch-action: none;
+  user-select: none;
+}
+.search-panel.is-dragging {
+  transition: none !important;
+  cursor: grabbing;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
 }
 @media (prefers-color-scheme: dark) {
   .search-panel { background: #2c2f36; border-color: rgba(255,255,255,0.1); }
   .search-input { background: #1f2329; color: #eee; border-color: rgba(255,255,255,0.15); }
   .search-count { color: #bbb; }
 }
+/* 拖拽把手（3x3 点阵，类似原生窗口 drag region） */
+.sp-drag-handle {
+  width: 24px;
+  height: 30px;
+  margin-right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: #a9adb4;
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+  transition: background .12s, color .12s;
+}
+.sp-drag-handle:hover { background: rgba(0,0,0,0.05); color: #1989fa; }
+.sp-drag-handle:active { cursor: grabbing; color: #1989fa; background: rgba(25,137,250,0.08); }
+@media (prefers-color-scheme: dark) {
+  .sp-drag-handle { color: #7d828a; }
+  .sp-drag-handle:hover { background: rgba(255,255,255,0.06); color: #6cb4ff; }
+  .sp-drag-handle:active { background: rgba(108,180,255,0.14); color: #6cb4ff; }
+}
 .search-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0; /* 保证 flex 子项在窄屏能压缩 */
 }
 .search-row-2 {
   padding-top: 2px;
   border-top: 1px dashed #ebedf0;
+  /* 第二行在极窄屏允许 wrap，不会把所有按钮挤压溢出 */
+  flex-wrap: wrap;
 }
+.search-row-2 .sp-toggle { flex: 0 0 auto; }
+.search-row-2 .replace-input { flex: 1 1 120px; min-width: 90px; }
+.search-row-2 .sp-primary { flex: 0 0 auto; }
 .search-input {
   flex: 1;
   height: 32px;
@@ -2084,6 +2202,37 @@ onUnmounted(() => {
   font-size: 12px;
   color: #969799;
   letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+/* ========= 移动端：搜索卡片不超出屏幕 + 可左右贴边 ========= */
+@media (max-width: 1023px) {
+  .search-panel {
+    left: 10px !important;
+    right: 10px !important;
+    min-width: 0;
+    max-width: none !important;
+    /* 拖动时覆盖上面的 left/right，所以在 dragging 时取消固定间距 */
+    top: 6px;
+    padding: 6px;
+    gap: 4px;
+    border-radius: 12px;
+  }
+  .search-panel.is-dragging {
+    /* 拖拽态允许 x/y 动态定位覆盖默认 left/right */
+    left: auto !important;
+    right: auto !important;
+  }
+  .sp-toggle { padding: 0 8px !important; height: 28px !important; }
+  .sp-btn { min-width: 26px !important; height: 28px !important; padding: 0 6px !important; }
+  .search-input { height: 30px !important; font-size: 14px !important; padding: 0 8px !important; }
+  .search-count { min-width: 42px; font-size: 11px; }
+  .replace-input { flex: 1 1 40% !important; }
+}
+/* 小屏（<360px）第二行允许紧凑 wrap + 文字溢出不隐藏 */
+@media (max-width: 359px) {
+  .search-row-2 .replace-input { flex-basis: 100%; }
+  .sp-drag-handle { width: 20px; height: 28px; }
 }
 .sp-btn {
   min-width: 28px;
