@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page" :class="{ 'page--fullscreen': isFullscreen }">
     <van-nav-bar :title="navTitle" left-arrow @click-left="onBack">
       <template #right>
@@ -110,7 +110,7 @@
             <textarea ref="textareaRef" v-model="form.content" class="content-area" :style="textareaDynamicStyle"
               placeholder="开始记录... 支持 Markdown 语法" @select="onTextSelect" @mouseup="onTextSelect" @touchend="onTouchEnd"
               @focus="onTextareaFocus" @scroll="onTextareaScroll" @blur="onTextareaBlur"
-              @paste.capture="onPaste"></textarea>
+              @keydown="onKeydown" @paste.capture="onPaste"></textarea>
 
             <!-- 字数统计 -->
             <div class="word-count" :style="{ color: textColor }">
@@ -532,24 +532,26 @@ const lineCount = computed(() => {
 
 // ========== 工具栏按钮 ==========
 const toolbarButtons = computed(() => [
-  { label: 'H', title: '一级标题', action: () => insert('# ', '', '标题') },
-  { label: 'H2', title: '二级标题', action: () => insert('## ', '', '二级标题') },
-  { label: 'H3', title: '三级标题', action: () => insert('### ', '', '三级标题') },
+  { label: 'H', title: '一级标题', action: () => insert('# ', '', '', 'line') },
+  { label: 'H2', title: '二级标题', action: () => insert('## ', '', '', 'line') },
+  { label: 'H3', title: '三级标题', action: () => insert('### ', '', '', 'line') },
+  { label: 'H4', title: '四级标题', action: () => insert('#### ', '', '', 'line') },
+  { label: 'H5', title: '五级标题', action: () => insert('##### ', '', '', 'line') },
   { divider: true },
-  { label: '<b>B</b>', title: '粗体', action: () => insert('**', '**', '粗体') },
-  { label: '<i>I</i>', title: '斜体', action: () => insert('*', '*', '斜体') },
-  { label: '<s>S</s>', title: '删除线', action: () => insert('~~', '~~', '删除线') },
-  { label: '<code>&lt;/&gt;</code>', title: '行内代码', action: () => insert('`', '`', 'code') },
+  { label: '<b>B</b>', title: '粗体', action: () => insert('**', '**', '', 'wrap') },
+  { label: '<i>I</i>', title: '斜体', action: () => insert('*', '*', '', 'wrap') },
+  { label: '<s>S</s>', title: '删除线', action: () => insert('~~', '~~', '', 'wrap') },
+  { label: '<code>&lt;/&gt;</code>', title: '行内代码', action: () => insert('`', '`', '', 'wrap') },
   { divider: true },
-  { label: '•', title: '无序列表', action: () => insert('- ', '', '列表项') },
-  { label: '1.', title: '有序列表', action: () => insert('1. ', '', '列表项') },
-  { label: '&quot;', title: '引用', action: () => insert('> ', '', '引用文字') },
-  { label: '---', title: '分割线', action: () => insert('\n---\n', '', '') },
+  { label: '•', title: '无序列表', action: () => insert('- ', '', '', 'line') },
+  { label: '1.', title: '有序列表', action: () => insert('1. ', '', '', 'line') },
+  { label: '&quot;', title: '引用', action: () => insert('> ', '', '', 'line') },
+  { label: '---', title: '分割线', action: () => insert('\n---\n', '', '', 'block') },
   { divider: true },
-  { label: '{ }', title: '代码块', action: () => insert('\n```\n', '\n```\n', '代码') },
-  { label: '$', title: '行内公式', action: () => insert('$', '$', '公式') },
-  { label: '$$', title: '块级公式', action: () => insert('\n$$\n', '\n$$\n', '公式') },
-  { label: '链接', title: '链接', action: () => insert('[', '](https://)', '链接文本') },
+  { label: '{ }', title: '代码块', action: () => insert('\n```\n', '\n```\n', '代码', 'block') },
+  { label: '$', title: '行内公式', action: () => insert('$', '$', '', 'wrap') },
+  { label: '$$', title: '块级公式', action: () => insert('\n$$\n', '\n$$\n', '公式', 'block') },
+  { label: '链接', title: '链接', action: () => insert('[', '](https://)', '', 'wrap') },
   { label: '图片', title: '插入图片', primary: true, action: triggerUpload },
   { divider: true },
   { label: '格式化', title: '格式化公式', action: formatFormulas }
@@ -1193,11 +1195,65 @@ async function createCategoryInline() {
   }
 }
 
-function insert(before, after = '', placeholder = '') {
+function insert(before, after = '', placeholder = '', mode = 'block') {
   const ta = textareaRef.value
   if (!ta) return
   const start = ta.selectionStart
   const end = ta.selectionEnd
+
+  if (mode === 'line') {
+    // 行前缀模式：H/列表/引用 — 在行首插入前缀
+    const lineStart = form.content.lastIndexOf('\n', start - 1) + 1
+    // 如果已有相同前缀则取消（toggle）
+    const existing = form.content.substring(lineStart, lineStart + before.length)
+    if (existing === before) {
+      form.content = form.content.substring(0, lineStart) + form.content.substring(lineStart + before.length)
+      nextTick(() => { ta.focus(); ta.setSelectionRange(lineStart, lineStart) })
+      return
+    }
+    // 选中多行时给每行加前缀
+    const selectedText = form.content.substring(start, end)
+    if (selectedText && selectedText.includes('\n')) {
+      const lines = selectedText.split('\n')
+      const newLines = lines.map(l => before + l)
+      const newText = newLines.join('\n')
+      form.content = form.content.substring(0, start) + newText + form.content.substring(end)
+      nextTick(() => { ta.focus(); ta.setSelectionRange(start, start + newText.length) })
+      return
+    }
+    // 单行或无选中：行首插入前缀
+    form.content = form.content.substring(0, lineStart) + before + form.content.substring(lineStart)
+    nextTick(() => {
+      ta.focus()
+      const pos = lineStart + before.length
+      ta.setSelectionRange(pos, pos)
+    })
+    return
+  }
+
+  if (mode === 'wrap') {
+    // 包裹模式：B/I/S/code/$/链接 — 无选中时自动选中当前整行
+    let selStart = start
+    let selEnd = end
+    if (selStart === selEnd) {
+      // 无选中：自动选中当前行
+      const lineStart = form.content.lastIndexOf('\n', selStart - 1) + 1
+      let lineEnd = form.content.indexOf('\n', selStart)
+      if (lineEnd === -1) lineEnd = form.content.length
+      selStart = lineStart
+      selEnd = lineEnd
+    }
+    const sel = form.content.substring(selStart, selEnd) || placeholder
+    form.content = form.content.substring(0, selStart) + before + sel + after + form.content.substring(selEnd)
+    nextTick(() => {
+      ta.focus()
+      const pos = selStart + before.length
+      ta.setSelectionRange(pos, pos + sel.length)
+    })
+    return
+  }
+
+  // block 模式（原逻辑）
   const sel = form.content.substring(start, end) || placeholder
   form.content =
     form.content.substring(0, start) + before + sel + after + form.content.substring(end)
@@ -1205,6 +1261,59 @@ function insert(before, after = '', placeholder = '') {
     ta.focus()
     const pos = start + before.length + sel.length
     ta.setSelectionRange(pos, pos)
+  })
+}
+
+// ========== 列表回车续行 ==========
+function onKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) handleListEnter(e)
+}
+
+function handleListEnter(e) {
+  const ta = textareaRef.value
+  if (!ta) return
+  const pos = ta.selectionStart
+  const text = form.content
+  if (pos !== ta.selectionEnd) return // 有选中时不处理
+
+  const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+  const lineEnd = text.indexOf('\n', pos)
+  const currentLineEnd = lineEnd === -1 ? text.length : lineEnd
+  const currentLine = text.substring(lineStart, currentLineEnd)
+  const cursorCol = pos - lineStart
+
+  // 匹配列表前缀：缩进 + (- * + 或 数字.) + 空格
+  const m = currentLine.match(/^(\s*)((?:[-*+]\s+)|(?:(\d+)\.\s+))/)
+  if (!m) return // 不是列表行，走默认
+
+  const indent = m[1]
+  const prefix = m[2]
+  const isOrdered = !!m[3]
+  const contentAfterPrefix = currentLine.substring(m[0].length)
+
+  if (!contentAfterPrefix.trim()) {
+    // 整行只有前缀没有内容 → 删除前缀，退出列表
+    e.preventDefault()
+    form.content = text.substring(0, lineStart) + indent + text.substring(currentLineEnd)
+    nextTick(() => { ta.focus(); ta.setSelectionRange(lineStart + indent.length, lineStart + indent.length) })
+    return
+  }
+
+  // 行有内容 → 续行
+  e.preventDefault()
+  let newPrefix
+  if (isOrdered) {
+    const num = parseInt(m[3], 10) + 1
+    newPrefix = `${indent}${num}. `
+  } else {
+    newPrefix = `${indent}${prefix}`
+  }
+  const insertText = '\n' + newPrefix
+  form.content = text.substring(0, pos) + insertText + text.substring(pos)
+  nextTick(() => {
+    ta.focus()
+    const newPos = pos + insertText.length
+    ta.setSelectionRange(newPos, newPos)
   })
 }
 
