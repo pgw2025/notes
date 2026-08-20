@@ -31,6 +31,12 @@
         <div class="note-title-row">
           <van-icon v-if="n.isPinned" name="star" color="#ff976a" size="16" class="pin-icon" />
           <div class="note-title">{{ n.title || '无标题' }}</div>
+          <van-icon
+            name="edit"
+            size="16"
+            class="edit-icon"
+            @click.stop="goEdit(n.id)"
+          />
         </div>
         <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
         <div class="note-meta">
@@ -46,6 +52,13 @@
         </div>
       </div>
       <template #right>
+        <van-button
+          square
+          type="primary"
+          text="编辑"
+          class="edit-btn"
+          @click.stop="goEdit(n)"
+        />
         <van-button
           square
           type="warning"
@@ -174,6 +187,11 @@ function goDetail(id) {
   router.push(`/notes/${id}`)
 }
 
+function goEdit(n) {
+  const id = typeof n === 'object' ? n.id : n
+  router.push(`/notes/${id}/edit`)
+}
+
 async function onDelete(note) {
   try {
     await showConfirmDialog({ title: '删除笔记', message: `确定删除「${note.title || '无标题'}」吗？` })
@@ -230,6 +248,27 @@ onActivated(() => {
 .pin-icon {
   flex-shrink: 0;
 }
+.edit-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  opacity: 0.75;
+  transition: background 0.15s, opacity 0.15s, transform 0.15s;
+  color: inherit; /* 跟随父级文字色 */
+}
+.edit-icon:hover {
+  background: rgba(128, 128, 128, 0.18);
+  opacity: 1;
+  transform: translateY(-1px);
+}
+.edit-icon:active {
+  background: rgba(128, 128, 128, 0.32);
+  transform: translateY(0);
+}
 .note-title {
   flex: 1;
   font-size: 16px;
@@ -262,6 +301,9 @@ onActivated(() => {
   height: 100%;
 }
 .pin-btn {
+  height: 100%;
+}
+.edit-btn {
   height: 100%;
 }
 

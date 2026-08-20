@@ -2,7 +2,8 @@
   <div class="page" :style="pageStyle">
     <van-nav-bar title="笔记详情" left-arrow @click-left="$router.back()">
       <template #right>
-        <div class="nav-right">
+        <!-- 桌面端单行布局：按钮在标题右侧 -->
+        <div class="nav-right nav-actions--desktop">
           <van-icon
             :name="note?.isPinned ? 'star' : 'star-o'"
             size="20"
@@ -15,6 +16,19 @@
         </div>
       </template>
     </van-nav-bar>
+
+    <!-- 移动端第二行：按钮独占一行，与标题完全不重叠 -->
+    <div class="nav-actions nav-actions--mobile">
+      <van-icon
+        :name="note?.isPinned ? 'star' : 'star-o'"
+        size="20"
+        :color="note?.isPinned ? '#ff976a' : navIconColor"
+        @click="onTogglePin"
+      />
+      <van-icon name="clock-o" size="20" :style="{ color: navIconColor }" @click="openVersions" />
+      <van-icon name="down" size="20" :style="{ color: navIconColor }" @click="showExportSheet = true" />
+      <van-icon name="edit" size="20" :style="{ color: navIconColor }" @click="note && $router.push(`/notes/${note.id}/edit`)" />
+    </div>
 
     <div v-if="note" class="detail" :style="{ color: textColor }">
       <h1 class="detail-title">{{ note.title || '无标题' }}</h1>
@@ -472,6 +486,45 @@ onMounted(loadNote)
   margin: 0 0 16px;
   padding-bottom: 10px;
   border-bottom: 1px solid #ebedf0;
+}
+
+/* 移动端默认：第二行工具栏布局 */
+@media (max-width: 1023px) {
+  :deep(.van-nav-bar__title) {
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 16px;
+  }
+  .nav-actions--desktop {
+    display: none !important;
+  }
+  /* 移动端第二行工具栏：全宽独占一行 */
+  .nav-actions--mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 8px 10px 10px;
+    gap: 4px;
+    background: inherit;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+  }
+  .nav-actions--mobile .van-icon {
+    font-size: 20px;
+  }
+}
+
+/* 桌面端：保持单行布局，隐藏移动端第二行工具栏 */
+@media (min-width: 1024px) {
+  .nav-actions--mobile {
+    display: none !important;
+  }
+  .nav-actions--desktop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 }
 
 /* 桌面端：居中阅读宽度 + 版本模态改为居中 Dialog 样式 */
