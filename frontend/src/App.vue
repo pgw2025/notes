@@ -154,6 +154,8 @@ const navItems = [
 .app-main {
   flex: 1;
   min-width: 0;
+  background: var(--app-bg);
+  min-height: 100vh;
 }
 
 /* 移动端：保持居中的手机视图（平板/大屏手机） */

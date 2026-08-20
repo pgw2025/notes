@@ -128,7 +128,25 @@ body.dark {
   --van-tabbar-item-font-size:   10px;
   --van-tabbar-item-text-color:  var(--text-tertiary);
   --van-tabbar-item-active-color: var(--color-primary);
+  --van-tabbar-item-active-background: transparent;
   --van-tabbar-height:           50px;
+
+  /* Tabs (分类/全部 tabs sticky 头)
+     Vant 内部混用 -background 和 -background-color，双写确保覆盖 */
+  --van-tabs-background:         var(--surface);
+  --van-tabs-nav-background:     var(--surface);
+  --van-tabs-nav-background-color: var(--surface);
+  --van-tabs-content-background: transparent;
+  --van-tabs-content-background-color: transparent;
+  --van-tabs-line-height: 44px;
+  --van-tabs-bottom-bar-color: var(--color-primary);
+  --van-tabs-item-text-color: var(--text-secondary);
+  --van-tabs-item-active-color: var(--color-primary);
+  --van-tabs-item-disabled-color: var(--text-disabled);
+
+  /* Empty 空状态 */
+  --van-empty-description-color: var(--text-tertiary);
+  --van-empty-padding: 40px 0;
 
   /* Cell */
   --van-cell-background:         var(--surface);
@@ -154,6 +172,9 @@ body.dark {
   --van-button-default-background: var(--surface-2);
   --van-button-default-border-color: var(--border);
   --van-button-default-color:    var(--text-primary);
+  --van-button-default-plain-background: transparent;
+  --van-button-default-plain-border-color: var(--border);
+  --van-button-default-plain-color: var(--text-primary);
 
   /* Toast / Notify */
   --van-toast-background:        rgba(30,30,32,0.92);
@@ -212,6 +233,57 @@ body.dark .van-notify--warning { background: var(--color-warning); }
 /* 移动端暗色 van-nav-bar 下边框默认硬编码灰：我们显式覆盖到 border */
 body.dark .van-nav-bar {
   border-bottom: 1px solid var(--border) !important;
+}
+
+/* 兜底：Vant 4 plain default 按钮的内联白底/黑字硬编码不在 CSS 变量体系里
+   （分类、标签、日期筛选按钮都是 plain + type=default，无筛选值时） */
+body.dark .van-button--default.van-button--plain {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+body.dark .van-button--default.van-button--plain:active,
+body.dark .van-button--default.van-button--plain:hover {
+  background: var(--surface-2);
+}
+/* 暗色下 plain primary 按钮已经正常，确保 plain + 自定义 type 的 icon 颜色可见 */
+body.dark .van-button--plain .van-icon {
+  color: currentColor;
+}
+
+/* 空状态 van-empty 的图片区域默认可能有白底占位：切透明让 app-bg 透过来 */
+body.dark .van-empty__image {
+  background: transparent;
+}
+
+/* 兜底：van-tabs / van-tabbar 部分版本背景不走 CSS 变量，直接硬编码白 */
+body.dark .van-tabs__wrap,
+body.dark .van-tabs__nav {
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+body.dark .van-tabs__content { background: transparent; }
+body.dark .van-tab {
+  color: var(--text-secondary);
+}
+body.dark .van-tab--active {
+  color: var(--color-primary);
+}
+
+/* 移动端底部 tabbar：选中项绝对不能是白底！强制透明 / 和 surface 一致 */
+body.dark .van-tabbar-item {
+  color: var(--text-tertiary);
+  background: transparent;
+}
+body.dark .van-tabbar-item--active {
+  color: var(--color-primary);
+  background: transparent;
+}
+/* Vant 4 内部可能给 active 加 .van-tabbar-item__icon 或内部 div 加白底 */
+body.dark .van-tabbar-item--active > *,
+body.dark .van-tabbar-item--active .van-tabbar-item__icon,
+body.dark .van-tabbar-item--active .van-tabbar-item__text {
+  background: transparent !important;
 }
 
 /* ==========================================================

@@ -238,6 +238,7 @@ onActivated(() => {
 .page {
   min-height: 100vh;
   padding-bottom: 80px;
+  background: var(--app-bg);
 }
 .empty {
   padding-top: 40px;

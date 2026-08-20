@@ -328,6 +328,7 @@ watch(() => filters.keyword, () => {
 .page {
   min-height: 100vh;
   padding-bottom: 80px;
+  background: var(--app-bg);
 }
 .filter-bar {
   background: var(--surface);

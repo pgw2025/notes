@@ -1888,7 +1888,7 @@ onUnmounted(() => {
 /* 原 tag-picker 等保留扩展（增加 inline-create 后 tag-list 需要更明确的高度计算） */
 .toolbar-wrap {
   border-top: 1px solid;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--toolbar-wrap-bg, rgba(255, 255, 255, 0.5));
 }
 
 /* ============ 工具栏（通用） ============ */
@@ -1897,8 +1897,8 @@ onUnmounted(() => {
   gap: 6px;
   padding: 8px 12px;
   overflow-x: auto;
-  background: rgba(255, 255, 255, 0.4);
-  border-bottom: 1px solid #ebedf0;
+  background: var(--toolbar-bg, rgba(255, 255, 255, 0.4));
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .toolbar .van-button {
@@ -1908,13 +1908,13 @@ onUnmounted(() => {
   width: 1px;
   align-self: stretch;
   margin: 4px 2px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--divider, rgba(0, 0, 0, 0.08));
   flex-shrink: 0;
 }
 
 /* ============ 桌面端：工具栏在编辑区顶部 ============ */
 .desktop-toolbar {
-  border-bottom: 1px solid #ebedf0;
+  border-bottom: 1px solid var(--border);
 }
 
 /* ============ 移动端：工具栏吸底常驻 ============ */
@@ -1923,13 +1923,13 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 20;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08));
   border-bottom: none;
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
   background: var(--mobile-toolbar-bg, rgba(255, 255, 255, 0.94));
   backdrop-filter: saturate(180%) blur(10px);
   -webkit-backdrop-filter: saturate(180%) blur(10px);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -2px 10px var(--toolbar-shadow, rgba(0, 0, 0, 0.06));
   /* 吸底工具栏通过 inline style 动态设置 bottom 值（跟随软键盘高度） */
 }
 .mobile-toolbar-scroll {
@@ -2152,9 +2152,38 @@ onUnmounted(() => {
   background: #1f2329;
 }
 
-/* 深色背景下：移动端吸底工具栏保持浅色毛玻璃 */
-:deep(.page) .mobile-toolbar {
-  background: rgba(255, 255, 255, 0.92);
+/* ============ 深色模式（暗模式 body.dark 由 Pinia theme 控制） ============ */
+:global(body.dark) .toolbar-wrap {
+  background: rgba(27, 29, 34, 0.6);
+}
+:global(body.dark) .toolbar {
+  background: rgba(27, 29, 34, 0.55);
+}
+:global(body.dark) .toolbar-divider {
+  background: var(--divider, rgba(255, 255, 255, 0.06));
+}
+:global(body.dark) .mobile-toolbar {
+  background: rgba(27, 29, 34, 0.92);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.4);
+}
+
+/* NoteEdit 工具栏内部 plain default 按钮：Vant 硬编码白底黑字不走变量
+   这里用页面级高优先级覆盖，保证和全局 body.dark 兜底一样表现 */
+:global(body.dark) .toolbar .van-button--default.van-button--plain,
+:global(body.dark) .mobile-toolbar .van-button--default.van-button--plain {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+:global(body.dark) .toolbar .van-button--default.van-button--plain:hover,
+:global(body.dark) .toolbar .van-button--default.van-button--plain:active,
+:global(body.dark) .mobile-toolbar .van-button--default.van-button--plain:hover,
+:global(body.dark) .mobile-toolbar .van-button--default.van-button--plain:active {
+  background: var(--surface-2);
+}
+:global(body.dark) .toolbar .van-button--plain .van-icon,
+:global(body.dark) .mobile-toolbar .van-button--plain .van-icon {
+  color: currentColor;
 }
 
 /* ============ P2-2 搜索 & 替换面板 ============ */
@@ -2169,8 +2198,8 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: #fff;
-  border: 1px solid #ebedf0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   /* 拖动时禁用过渡/动画，避免跟随不流畅 */
@@ -2182,11 +2211,16 @@ onUnmounted(() => {
   cursor: grabbing;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.18);
 }
-@media (prefers-color-scheme: dark) {
-  .search-panel { background: #2c2f36; border-color: rgba(255,255,255,0.1); }
-  .search-input { background: #1f2329; color: #eee; border-color: rgba(255,255,255,0.15); }
-  .search-count { color: #bbb; }
+:global(body.dark) .search-panel {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
+:global(body.dark) .search-panel.is-dragging {
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+}
+:global(body.dark) .search-input { background: var(--surface-2); color: var(--text-primary); border-color: var(--border); }
+:global(body.dark) .search-count { color: var(--text-tertiary); }
 /* 拖拽把手（3x3 点阵，类似原生窗口 drag region） */
 .sp-drag-handle {
   width: 24px;
@@ -2196,19 +2230,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: #a9adb4;
+  color: var(--text-tertiary);
   cursor: grab;
   touch-action: none;
   flex-shrink: 0;
   transition: background .12s, color .12s;
 }
-.sp-drag-handle:hover { background: rgba(0,0,0,0.05); color: #1989fa; }
-.sp-drag-handle:active { cursor: grabbing; color: #1989fa; background: rgba(25,137,250,0.08); }
-@media (prefers-color-scheme: dark) {
-  .sp-drag-handle { color: #7d828a; }
-  .sp-drag-handle:hover { background: rgba(255,255,255,0.06); color: #6cb4ff; }
-  .sp-drag-handle:active { background: rgba(108,180,255,0.14); color: #6cb4ff; }
-}
+.sp-drag-handle:hover { background: var(--surface-2); color: var(--color-primary); }
+.sp-drag-handle:active { cursor: grabbing; color: var(--color-primary); background: var(--surface-3); }
 .search-row {
   display: flex;
   align-items: center;
@@ -2217,7 +2246,7 @@ onUnmounted(() => {
 }
 .search-row-2 {
   padding-top: 2px;
-  border-top: 1px dashed #ebedf0;
+  border-top: 1px dashed var(--border);
   /* 第二行在极窄屏允许 wrap，不会把所有按钮挤压溢出 */
   flex-wrap: wrap;
 }
@@ -2228,21 +2257,22 @@ onUnmounted(() => {
   flex: 1;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid #dcdee0;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-size: 13px;
   outline: none;
-  background: #fff;
+  background: var(--surface);
+  color: var(--text-primary);
   transition: border-color 0.15s;
   min-width: 0;
 }
-.search-input:focus { border-color: #1989fa; }
+.search-input:focus { border-color: var(--color-primary); }
 .replace-input { flex: 1 1 50%; }
 .search-count {
   min-width: 48px;
   text-align: center;
   font-size: 12px;
-  color: #969799;
+  color: var(--text-tertiary);
   letter-spacing: 0.3px;
   flex-shrink: 0;
 }
