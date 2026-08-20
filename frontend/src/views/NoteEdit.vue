@@ -1457,11 +1457,38 @@ onUnmounted(() => {
   backdrop-filter: blur(2px);
 }
 
-/* 移动端默认（无键盘）的底部预留 */
+/* 移动端默认（无键盘）的底部预留 & 导航栏紧凑布局 */
 @media (max-width: 1023px) {
   .content-area {
     padding-bottom: 90px;
   }
+  /* 防止 title 被右侧按钮挤爆 */
+  :deep(.van-nav-bar__title) {
+    max-width: 36%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+  }
+  /* 右侧按钮区紧凑排列 */
+  .nav-actions {
+    gap: 6px !important;
+  }
+  .nav-char-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 15px;
+  }
+  .nav-icon { font-size: 18px; }
+  .nav-actions .van-icon { font-size: 18px; }
+  .nav-actions .van-button {
+    padding: 0 10px;
+    height: 28px;
+    line-height: 28px;
+    font-size: 13px;
+  }
+  /* 颜色编辑图标保持小尺寸 */
+  .color-icon { font-size: 18px; }
 }
 
 .editor-body {
@@ -1756,7 +1783,17 @@ onUnmounted(() => {
   border-right: none !important;
   margin: 0 !important;
 }
-.page--fullscreen :deep(.van-nav-bar) { display: none; }
+.page--fullscreen :deep(.van-nav-bar) {
+  background: transparent;
+  box-shadow: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: saturate(1.3) blur(6px);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+.page--fullscreen :deep(.van-nav-bar__title) { font-weight: 500; font-size: 14px; opacity: 0.6; }
+.page--fullscreen :deep(.van-nav-bar__text:active) { background: transparent; }
 .page--fullscreen .editor {
   padding: 0 !important;
   min-height: 100vh;
