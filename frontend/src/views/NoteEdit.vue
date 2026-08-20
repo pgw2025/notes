@@ -51,19 +51,60 @@
         maxlength="200"
       />
 
-      <div class="meta-row" :style="{ borderTopColor: metaBorderColor, borderColor: metaBorderColor }">
-        <van-cell
-          title="分类"
-          is-link
-          :value="selectedCategoryName || '未选择'"
-          @click="showCategoryPicker = true"
-        />
-        <van-cell
-          title="标签"
-          is-link
-          :value="selectedTagNames || '未选择'"
-          @click="showTagPicker = true"
-        />
+      <!-- 方案A：分类/标签 Chips 化（label + pill + 移除× + 添加） -->
+      <div class="meta-row meta-row--chips" :style="{ borderTopColor: metaBorderColor, borderColor: metaBorderColor }">
+        <!-- 分类行 -->
+        <div class="meta-chip-row">
+          <span class="meta-label" :style="{ color: textColor }">分类</span>
+          <div class="meta-chips">
+            <span
+              v-if="selectedCategory"
+              class="chip chip--cat"
+              :style="chipStyle.cat"
+              @click="showCategoryPicker = true"
+              :title="'点击切换分类：' + selectedCategory.name"
+            >
+              <span class="chip-icon">📁</span>
+              <span class="chip-text">{{ selectedCategory.name }}</span>
+              <span
+                class="chip-x"
+                @click.stop="form.categoryId = null"
+                title="移除分类"
+              >×</span>
+            </span>
+            <span
+              v-else
+              class="chip chip--add"
+              @click="showCategoryPicker = true"
+              :style="chipStyle.add"
+              title="选择分类"
+            >＋ 选分类</span>
+          </div>
+        </div>
+
+        <!-- 标签行 -->
+        <div class="meta-chip-row" :style="{ borderTopColor: metaBorderColor }">
+          <span class="meta-label" :style="{ color: textColor }">标签</span>
+          <div class="meta-chips">
+            <span
+              v-for="t in selectedTags"
+              :key="t.id"
+              class="chip chip--tag"
+              :style="chipStyle.tag"
+              :title="'点击移除标签：' + t.name"
+            >
+              <span class="chip-icon">#</span>
+              <span class="chip-text">{{ t.name }}</span>
+              <span class="chip-x" @click.stop="removeTag(t.id)">×</span>
+            </span>
+            <span
+              class="chip chip--add"
+              @click="showTagPicker = true"
+              :style="chipStyle.add"
+              title="添加标签"
+            >＋ 添加标签</span>
+          </div>
+        </div>
       </div>
 
       <div v-if="!isDesktop" class="toolbar-wrap" :style="{ borderTopColor: metaBorderColor }">
@@ -279,16 +320,48 @@
       </div>
     </transition>
 
-    <!-- 分类选择 -->
+    <!-- 分类选择：含内联新建输入 -->
     <van-popup v-model:show="showCategoryPicker" position="bottom" round>
-      <van-picker
-        :columns="categoryColumns"
-        @confirm="onCategoryConfirm"
-        @cancel="showCategoryPicker = false"
-      />
+      <div class="cat-picker">
+        <van-nav-bar title="选择分类">
+          <template #right>
+            <van-button size="mini" type="primary" plain @click="showCategoryPicker = false">完成</van-button>
+          </template>
+        </van-nav-bar>
+        <div class="inline-create">
+          <van-field
+            v-model="newCategoryName"
+            placeholder="输入新分类，回车立即创建"
+            clearable
+            maxlength="20"
+            :border="false"
+            :loading="creatingCategory"
+            @keydown.enter.prevent="createCategoryInline"
+          >
+            <template #left-icon>
+              <span class="ic-plus">＋</span>
+            </template>
+            <template #button>
+              <van-button
+                size="small"
+                type="primary"
+                :disabled="!newCategoryName.trim()"
+                :loading="creatingCategory"
+                @click="createCategoryInline"
+              >创建</van-button>
+            </template>
+          </van-field>
+        </div>
+        <van-picker
+          :columns="categoryColumns"
+          :default-index="categoryDefaultIndex"
+          @confirm="onCategoryConfirm"
+          @cancel="showCategoryPicker = false"
+        />
+      </div>
     </van-popup>
 
-    <!-- 标签选择 -->
+    <!-- 标签选择：含内联新建输入 -->
     <van-popup v-model:show="showTagPicker" position="bottom" round style="height: 60%">
       <div class="tag-picker">
         <van-nav-bar title="选择标签">
@@ -296,13 +369,37 @@
             <van-button size="mini" type="primary" @click="showTagPicker = false">完成</van-button>
           </template>
         </van-nav-bar>
+        <div class="inline-create">
+          <van-field
+            v-model="newTagName"
+            placeholder="输入新标签，回车立即创建并勾选"
+            clearable
+            maxlength="20"
+            :border="false"
+            :loading="creatingTag"
+            @keydown.enter.prevent="createTagInline"
+          >
+            <template #left-icon>
+              <span class="ic-plus">＋</span>
+            </template>
+            <template #button>
+              <van-button
+                size="small"
+                type="primary"
+                :disabled="!newTagName.trim()"
+                :loading="creatingTag"
+                @click="createTagInline"
+              >创建</van-button>
+            </template>
+          </van-field>
+        </div>
         <div class="tag-list">
           <van-checkbox-group v-model="form.tagIds">
             <van-cell
               v-for="t in tags"
               :key="t.id"
               :title="t.name"
-              :label="`包含 ${t.noteCount} 篇笔记`"
+              :label="t.noteCount != null ? `包含 ${t.noteCount} 篇笔记` : '新建标签'"
               clickable
               @click="toggleTag(t.id)"
             >
@@ -312,9 +409,7 @@
             </van-cell>
           </van-checkbox-group>
           <div v-if="tags.length === 0" class="empty-tags">
-            <van-empty description="还没有标签" image-size="80">
-              <van-button size="small" type="primary" plain @click="$router.push('/tags')">去创建</van-button>
-            </van-empty>
+            <van-empty description="还没有标签，在上方输入框直接创建" image-size="80" />
           </div>
         </div>
       </div>
@@ -367,6 +462,11 @@ const mode = ref('edit')
 const saving = ref(false)
 const showCategoryPicker = ref(false)
 const showTagPicker = ref(false)
+// 内联新建（方案A：弹窗内直接创建，不再跳 /tags /categories 页）
+const newTagName = ref('')
+const newCategoryName = ref('')
+const creatingTag = ref(false)
+const creatingCategory = ref(false)
 const showColorPicker = ref(false)
 const textareaRef = ref(null)
 const fileInput = ref(null)
@@ -492,17 +592,48 @@ const categoryColumns = computed(() => [
   { text: '无分类', value: null },
   ...categories.value.map((c) => ({ text: c.name, value: c.id }))
 ])
+// Picker 默认选中当前分类（方案A补齐：van-picker default-index）
+const categoryDefaultIndex = computed(() => {
+  const cols = categoryColumns.value
+  const idx = cols.findIndex((x) => x.value === form.categoryId)
+  return idx >= 0 ? idx : 0
+})
 
 const selectedCategoryName = computed(() => {
   const c = categories.value.find((x) => x.id === form.categoryId)
   return c?.name || ''
 })
+// 方案A：已选分类对象（用于 Chip 展示，null 则渲染 ＋选分类 占位）
+const selectedCategory = computed(() => categories.value.find((x) => x.id === form.categoryId) || null)
 
 const selectedTagNames = computed(() => {
   const names = tags.value
     .filter((t) => form.tagIds.includes(t.id))
     .map((t) => t.name)
   return names.join('、')
+})
+// 方案A：已选标签数组（v-for 渲染 Pill，每个带 × 移除）
+const selectedTags = computed(() => tags.value.filter((t) => form.tagIds.includes(t.id)))
+
+// 方案A：Chip 动态样式 —— 根据笔记背景色深浅自动切换 chip 填充色，保证对比度
+// 原则：chip 背景选浅色系 + 文字深色；在深色笔记背景下也用浅色 chip 填充，
+// 只有 chip--add 用半透明描边更柔和，和整体配色协同
+const chipStyle = computed(() => {
+  const dark = isDarkColor(effectiveBg.value)
+  if (dark) {
+    // 深色笔记背景：chip 用柔和半透明 fill，保证可辨识
+    return {
+      cat: { background: 'rgba(106,92,255,0.18)', color: '#c4bfff', borderColor: 'transparent' },
+      tag: { background: 'rgba(52,199,89,0.15)', color: '#9fe6b4', borderColor: 'transparent' },
+      add: { background: 'transparent', color: 'rgba(255,255,255,0.55)', borderStyle: 'dashed' }
+    }
+  }
+  // 浅色背景（默认）
+  return {
+    cat: { background: '#eef0ff', color: '#5d4fff', borderColor: 'transparent' },
+    tag: { background: '#eaf8ee', color: '#1f7a3a', borderColor: 'transparent' },
+    add: { background: 'transparent', color: '#86909c', borderStyle: 'dashed' }
+  }
 })
 
 const effectiveBg = computed(() => resolveNoteColor(form.backgroundColor, auth.user?.defaultNoteColor))
@@ -1045,6 +1176,86 @@ function toggleTag(id) {
   else form.tagIds.push(id)
 }
 
+// 方案A：Chip × 点击移除标签
+function removeTag(id) {
+  const i = form.tagIds.indexOf(id)
+  if (i >= 0) form.tagIds.splice(i, 1)
+}
+
+// 方案A：标签弹窗 — 内联新建标签（回车/按钮触发），创建成功自动勾选并加入 tags 列表
+async function createTagInline() {
+  const name = newTagName.value.trim()
+  if (!name) { showToast('请输入标签名'); return }
+  // 已存在则直接勾选并清空输入
+  const exist = tags.value.find((t) => t.name.toLowerCase() === name.toLowerCase())
+  if (exist) {
+    if (!form.tagIds.includes(exist.id)) form.tagIds.push(exist.id)
+    newTagName.value = ''
+    showToast('已勾选')
+    return
+  }
+  creatingTag.value = true
+  try {
+    const created = await http.post('/tags', { name })
+    // 后端可能返回 { id, name, noteCount } 或 { name }，兜底兼容
+    const record = created && created.id ? created : { id: created?.id, name, noteCount: 0 }
+    // 兼容后端只返回 name/空对象的情况：再刷新一次列表拿真实 id
+    if (!record.id) {
+      const fresh = await http.get('/tags')
+      tags.value = fresh
+      const just = fresh.find((t) => t.name === name)
+      if (just) {
+        record.id = just.id
+        record.noteCount = just.noteCount ?? 0
+      }
+    } else {
+      tags.value.push(record)
+    }
+    if (record.id && !form.tagIds.includes(record.id)) form.tagIds.push(record.id)
+    newTagName.value = ''
+    showToast('已创建并勾选')
+  } catch {
+    // http 全局拦截器会弹错误 toast
+  } finally {
+    creatingTag.value = false
+  }
+}
+
+// 方案A：分类弹窗 — 内联新建分类（回车/按钮触发），创建成功自动设为当前分类
+async function createCategoryInline() {
+  const name = newCategoryName.value.trim()
+  if (!name) { showToast('请输入分类名'); return }
+  const exist = categories.value.find((c) => c.name.toLowerCase() === name.toLowerCase())
+  if (exist) {
+    form.categoryId = exist.id
+    newCategoryName.value = ''
+    showToast('已选择')
+    return
+  }
+  creatingCategory.value = true
+  try {
+    const created = await http.post('/categories', { name })
+    const record = created && created.id ? created : null
+    let finalId = record?.id
+    if (!finalId) {
+      // 后端没返回 id：刷新拿真实 id
+      const fresh = await http.get('/categories')
+      categories.value = fresh
+      const just = fresh.find((c) => c.name === name)
+      if (just) finalId = just.id
+    } else {
+      categories.value.push(record)
+    }
+    if (finalId) form.categoryId = finalId
+    newCategoryName.value = ''
+    showToast('已创建并应用')
+  } catch {
+    // 由全局拦截器提示错误
+  } finally {
+    creatingCategory.value = false
+  }
+}
+
 function insert(before, after = '', placeholder = '') {
   const ta = textareaRef.value
   if (!ta) return
@@ -1411,6 +1622,147 @@ onUnmounted(() => {
 .meta-row {
   border-top: 1px solid;
 }
+/* ============ 方案A：分类/标签 Chips 布局 ============ */
+.meta-row--chips {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px 6px;
+  border-bottom: 1px solid;
+}
+.meta-chip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px dashed transparent;
+}
+.meta-chip-row:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+.meta-chip-row:not(:first-child) {
+  border-top: 1px solid;
+  margin-top: 2px;
+  padding-top: 8px;
+}
+.meta-label {
+  flex: 0 0 40px;
+  font-size: 13px;
+  color: #969799;
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: .5px;
+  user-select: none;
+}
+.meta-chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 240px;
+  padding: 3px 8px 3px 9px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 12.5px;
+  line-height: 1;
+  font-weight: 500;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all .12s ease;
+  user-select: none;
+}
+.chip:hover {
+  filter: brightness(.97);
+  transform: translateY(-.5px);
+}
+.chip--cat { cursor: pointer; }
+.chip--tag { cursor: default; }
+.chip-icon {
+  font-size: 11px;
+  opacity: .75;
+  margin-right: 1px;
+  display: inline-flex;
+  align-items: center;
+}
+.chip-text {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 16px;
+  opacity: .55;
+  cursor: pointer;
+  transition: opacity .12s, background .12s;
+}
+.chip-x:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.08);
+}
+.chip--add {
+  padding: 3px 10px;
+  font-weight: 500;
+}
+.chip--add:hover {
+  border-style: solid !important;
+  opacity: .85;
+}
+
+/* 内联新建输入（分类/标签 popup 顶部） */
+.cat-picker {
+  display: flex;
+  flex-direction: column;
+}
+.inline-create {
+  padding: 4px 12px 10px;
+  border-bottom: 1px solid #ebedf0;
+}
+.inline-create :deep(.van-field__left-icon) {
+  color: #1989fa;
+  margin-right: 0;
+}
+.ic-plus {
+  font-size: 15px;
+  width: 16px;
+  text-align: center;
+  display: inline-block;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 深色模式（自动 + 强制）*/
+@media (prefers-color-scheme: dark) {
+  .inline-create { border-bottom-color: #2c3138; }
+}
+
+/* 全屏模式 chips 对齐 */
+.page--fullscreen .meta-row--chips {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (max-width: 1023px) {
+  .meta-label { flex-basis: 34px; font-size: 12.5px; }
+  .chip { max-width: 200px; height: 26px; padding: 3px 10px 3px 11px; }
+  .chip-text { max-width: 130px; }
+}
+
+/* 原 tag-picker 等保留扩展（增加 inline-create 后 tag-list 需要更明确的高度计算） */
 .toolbar-wrap {
   border-top: 1px solid;
   background: rgba(255, 255, 255, 0.5);
