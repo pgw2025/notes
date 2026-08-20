@@ -309,7 +309,7 @@ public class NotesController : ControllerBase
         _db.NoteTags.RemoveRange(note.NoteTags);
         await SyncTags(note, dto.TagIds ?? new List<int>());
 
-        if (contentChanged)
+        if (dto.CreateVersion == true && contentChanged)
         {
             _db.NoteVersions.Add(new NoteVersion
             {

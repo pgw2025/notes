@@ -13,5 +13,11 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      // 生产构建：这 5 个包不打入 bundle，改由 index.html 的 importmap 从 CDN 加载
+      external: ['vue', 'pinia', 'vant', 'axios', 'vue-router']
+    }
   }
 })

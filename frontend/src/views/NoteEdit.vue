@@ -432,18 +432,19 @@ const saveTimeText = computed(() => {
   } catch { return '' }
 })
 
-function buildPayload() {
+function buildPayload({ createVersion = false } = {}) {
   return {
     title: form.title.trim(),
     content: form.content,
     categoryId: form.categoryId,
     tagIds: form.tagIds,
     backgroundColor: form.backgroundColor || '',
-    isPinned: form.isPinned
+    isPinned: form.isPinned,
+    createVersion
   }
 }
 
-async function doServerSave({ silentIfBlank = true } = {}) {
+async function doServerSave({ silentIfBlank = true, createVersion = false } = {}) {
   // 标题+内容同时为空：不调用接口（接口会拒绝）
   const blank = !form.title.trim() && !form.content.trim()
   if (blank) {
@@ -455,7 +456,7 @@ async function doServerSave({ silentIfBlank = true } = {}) {
   saveStatus.value = 'saving'
   saving.value = true
   try {
-    const payload = buildPayload()
+    const payload = buildPayload({ createVersion })
     if (isReallyEdit.value) {
       await http.put(`/notes/${effectiveNoteId.value}`, payload)
     } else {
@@ -493,7 +494,7 @@ function scheduleAutoSave() {
 }
 
 // flush：立即取消防抖计时器并强制保存一次，返回 Promise<ok>
-async function flushAutoSave({ forceEvenIfNotPending = false } = {}) {
+async function flushAutoSave({ forceEvenIfNotPending = false, createVersion = false } = {}) {
   cancelAutoSaveTimer()
   if (!pendingChanges && !forceEvenIfNotPending) {
     return { ok: true }
@@ -506,7 +507,7 @@ async function flushAutoSave({ forceEvenIfNotPending = false } = {}) {
       await new Promise((r) => setTimeout(r, 50))
     }
   }
-  return await doServerSave({ silentIfBlank: false })
+  return await doServerSave({ silentIfBlank: false, createVersion })
 }
 
 function updateDocumentTitle() {
@@ -1352,7 +1353,7 @@ function onDrop(e) {
 }
 
 async function onSave() {
-  const res = await flushAutoSave({ forceEvenIfNotPending: true })
+  const res = await flushAutoSave({ forceEvenIfNotPending: true, createVersion: true })
   if (!res.ok) {
     showToast('保存失败：' + (saveErrorMsg.value || ''))
     return

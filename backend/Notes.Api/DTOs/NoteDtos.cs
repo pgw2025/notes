@@ -30,4 +30,4 @@ public record NoteListItemDto(
 
 public record CreateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned);
 
-public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned);
+public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned, bool? CreateVersion = null);
