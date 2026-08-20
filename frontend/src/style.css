@@ -199,6 +199,11 @@ body.dark {
   /* Picker / ActionSheet / Dialog popup surfaces */
   --van-popup-background:        var(--surface);
   --van-popup-round-radius:      16px;
+  --van-dialog-background:       var(--surface);
+  --van-dialog-header-font-color: var(--text-primary);
+  --van-dialog-message-font-color: var(--text-secondary);
+  --van-dialog-confirm-button-text-color: var(--color-primary);
+  --van-action-sheet-item-background: var(--surface);
 
   /* Chip / Tag colors for primary/success/danger/warning already OK */
 }
@@ -208,8 +213,11 @@ body.dark .van-dialog,
 body.dark .van-picker,
 body.dark .van-action-sheet {
   color: var(--text-primary);
+  background: var(--surface) !important;
 }
+body.dark .van-dialog__header { color: var(--text-primary); }
 body.dark .van-dialog__message { color: var(--text-secondary); }
+body.dark .van-dialog__content { background: var(--surface) !important; }
 body.dark .van-action-sheet__item {
   color: var(--text-primary);
   background: var(--surface);
