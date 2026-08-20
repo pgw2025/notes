@@ -26,6 +26,21 @@
       </template>
     </van-nav-bar>
 
+    <!-- 保存状态条：显示保存中/已保存/保存失败，移动端桌面端都显示 -->
+    <div
+      class="save-status"
+      :class="[`save-status--${saveStatus}`, { 'is-clickable': saveStatus === 'error' }]"
+      @click="saveStatus === 'error' && onSave()"
+    >
+      <span class="save-status__dot"></span>
+      <span class="save-status__text">
+        <template v-if="saveStatus === 'saving'">保存中…</template>
+        <template v-else-if="saveStatus === 'saved'">已保存 · {{ saveTimeText }}</template>
+        <template v-else-if="saveStatus === 'error'">保存失败，点击重试</template>
+        <template v-else>&nbsp;</template>
+      </span>
+    </div>
+
     <!-- 移动端第二行工具栏：按钮独占一行，和标题完全不重叠 -->
     <div class="nav-actions nav-actions--mobile">
       <van-icon
@@ -445,7 +460,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showToast, showConfirmDialog } from 'vant'
+import { showToast } from 'vant'
 import http from '../api/http'
 import MarkdownBody from '../components/MarkdownBody.vue'
 import ColorPicker from '../components/ColorPicker.vue'
@@ -550,87 +565,122 @@ function onSearchDragEnd(e) {
   document.removeEventListener('pointercancel', onSearchDragEnd, true)
 }
 
-// ========== P0-1 草稿自动保存 ==========
-const draftKey = computed(() => `note_draft/${noteId.value || 'new'}`)
-const hasUnsavedChanges = ref(false)
-// 服务器端保存快照：保存成功后写入，返回时以此为准判断是否有未保存改动
-const lastSavedSnapshot = ref('')
+// ========== 自动保存（方案A：服务器 debounce 保存） ==========
+// 保存状态机：idle / saving / saved / error
+const saveStatus = ref('idle')
+const saveErrorMsg = ref('')
+const lastSavedAt = ref(null)
+// 防抖计时器（支持 flush：手动保存/返回时立即取消并立刻执行）
+let autoSaveTimer = null
+// 当前是否处于真正的请求中，防止并发（手动 flush 时和 debounced 同时撞车）
+let autoSaveInFlight = false
+// 是否有待保存的变更（上一次保存成功之后表单又变了）
+let pendingChanges = false
 
-function snapshotForm() {
-  return JSON.stringify({
-    title: form.title,
+function cancelAutoSaveTimer() {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
+  }
+}
+
+const saveTimeText = computed(() => {
+  const t = lastSavedAt.value
+  if (!t) return ''
+  try {
+    const d = new Date(t)
+    const pad = (n) => n.toString().padStart(2, '0')
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  } catch { return '' }
+})
+
+function buildPayload() {
+  return {
+    title: form.title.trim(),
     content: form.content,
     categoryId: form.categoryId,
     tagIds: form.tagIds,
-    backgroundColor: form.backgroundColor,
+    backgroundColor: form.backgroundColor || '',
     isPinned: form.isPinned
-  })
-}
-function isDirty() {
-  if (hasUnsavedChanges.value) return true
-  const cur = snapshotForm()
-  // 新建笔记：既没有保存过，也没有任何内容 → 不算脏
-  if (!lastSavedSnapshot.value && !form.title.trim() && !form.content.trim()) return false
-  // 新建笔记但有内容 → 算脏（需要提醒保存/丢弃）
-  if (!lastSavedSnapshot.value) return !!(form.title.trim() || form.content.trim())
-  return cur !== lastSavedSnapshot.value
-}
-
-function debounce(fn, wait = 300) {
-  let timer = null
-  return function (...args) {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => fn.apply(this, args), wait)
   }
 }
 
-function saveDraft() {
-  if (!form.title.trim() && !form.content.trim()) {
-    try { localStorage.removeItem(draftKey.value) } catch {}
-    hasUnsavedChanges.value = false
-    updateDocumentTitle()
-    return
+async function doServerSave({ silentIfBlank = true } = {}) {
+  // 标题+内容同时为空：不调用接口（接口会拒绝）
+  const blank = !form.title.trim() && !form.content.trim()
+  if (blank) {
+    pendingChanges = false
+    saveStatus.value = 'idle'
+    return { ok: true, blank: true }
   }
-  const snapshot = JSON.stringify({
-    title: form.title,
-    content: form.content,
-    categoryId: form.categoryId,
-    tagIds: [...form.tagIds],
-    backgroundColor: form.backgroundColor,
-    isPinned: form.isPinned,
-    savedAt: Date.now()
-  })
+  autoSaveInFlight = true
+  saveStatus.value = 'saving'
+  saving.value = true
   try {
-    localStorage.setItem(draftKey.value, snapshot)
-    hasUnsavedChanges.value = true
+    const payload = buildPayload()
+    if (isReallyEdit.value) {
+      await http.put(`/notes/${effectiveNoteId.value}`, payload)
+    } else {
+      const created = await http.post('/notes', payload)
+      // 新建笔记创建成功：URL replace 到编辑页，表单不变
+      await router.replace(`/notes/${created.id}/edit`)
+    }
+    lastSavedAt.value = Date.now()
+    saveStatus.value = 'saved'
+    pendingChanges = false
     updateDocumentTitle()
-  } catch (e) { /* ignore */ }
+    return { ok: true }
+  } catch (e) {
+    saveStatus.value = 'error'
+    saveErrorMsg.value = e?.message || '未知错误'
+    updateDocumentTitle()
+    return { ok: false, error: e }
+  } finally {
+    autoSaveInFlight = false
+    saving.value = false
+  }
 }
 
-function clearDraft() {
-  try { localStorage.removeItem(draftKey.value) } catch {}
-  hasUnsavedChanges.value = false
+function scheduleAutoSave() {
+  pendingChanges = true
+  saveStatus.value = pendingChanges ? 'idle' : 'saved'
   updateDocumentTitle()
+  cancelAutoSaveTimer()
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null
+    // 已经在请求中 → 等这次请求结束会再被触发一次（见 finally 块兜底）
+    if (autoSaveInFlight) return
+    doServerSave()
+  }, 2000)
 }
 
-function readDraft() {
-  try {
-    const raw = localStorage.getItem(draftKey.value)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch { return null }
+// flush：立即取消防抖计时器并强制保存一次，返回 Promise<ok>
+async function flushAutoSave({ forceEvenIfNotPending = false } = {}) {
+  cancelAutoSaveTimer()
+  if (!pendingChanges && !forceEvenIfNotPending) {
+    return { ok: true }
+  }
+  // 如果已经在请求中：等它完再立刻补一次，取最后结果
+  if (autoSaveInFlight) {
+    // 轮询等待 inFlight 结束（最多 20s）
+    const t0 = Date.now()
+    while (autoSaveInFlight && Date.now() - t0 < 20000) {
+      await new Promise((r) => setTimeout(r, 50))
+    }
+  }
+  return await doServerSave({ silentIfBlank: false })
 }
 
 function updateDocumentTitle() {
   const base = isEdit.value ? '编辑笔记' : '新建笔记'
-  document.title = hasUnsavedChanges.value ? `● ${base}` : base
+  const dirty = pendingChanges || saveStatus.value === 'saving' || saveStatus.value === 'error'
+  document.title = dirty ? `● ${base}` : base
 }
 
-const scheduleSaveDraft = debounce(saveDraft, 2500)
-
+// 监听表单变化 → 启动 2s 防抖
 watch(
   [() => form.title, () => form.content, () => form.categoryId, () => form.tagIds, () => form.backgroundColor, () => form.isPinned],
-  () => { scheduleSaveDraft() },
+  () => { scheduleAutoSave() },
   { deep: true }
 )
 
@@ -1191,9 +1241,6 @@ async function loadData() {
     try { await auth.fetchUser() } catch { /* ignore */ }
   }
 
-  const draft = readDraft()
-  let serverUpdatedAt = 0
-
   if (isEdit.value) {
       const note = await http.get(`/notes/${noteId.value}`)
       form.title = note.title
@@ -1204,46 +1251,16 @@ async function loadData() {
         .map((name) => tags.value.find((t) => t.name === name)?.id)
         .filter(Boolean)
       form.backgroundColor = note.backgroundColor || null
-      // 记录服务器端初始快照：用于判断后续是否真正有改动
-      lastSavedSnapshot.value = snapshotForm()
-      serverUpdatedAt = note.updatedAt ? new Date(note.updatedAt).getTime() : 0
-    }
-
-  if (draft && (draft.title || draft.content)) {
-    const needAsk = !isEdit.value
-      ? true
-      : new Date(draft.savedAt || 0).getTime() > serverUpdatedAt
-    if (needAsk) {
-      try {
-        await showConfirmDialog({
-          title: '发现未保存的草稿',
-          message: `保存时间：${formatDraftTime(draft.savedAt)}\n是否恢复到上次编辑的内容？`,
-          confirmButtonText: '恢复草稿',
-          cancelButtonText: '丢弃草稿'
-        })
-        form.title = draft.title || ''
-        form.content = draft.content || ''
-        form.categoryId = draft.categoryId ?? null
-        form.tagIds = Array.isArray(draft.tagIds) ? draft.tagIds : []
-        form.backgroundColor = draft.backgroundColor ?? null
-        form.isPinned = draft.isPinned || false
-        hasUnsavedChanges.value = true
-        updateDocumentTitle()
-        showToast('草稿已恢复')
-      } catch {
-        clearDraft()
-      }
-    }
+      // 刚从服务器取回来的内容视为已保存基准
+      lastSavedAt.value = note.updatedAt ? new Date(note.updatedAt).getTime() : null
+      saveStatus.value = 'saved'
+      pendingChanges = false
+      updateDocumentTitle()
+  } else {
+    saveStatus.value = 'idle'
+    pendingChanges = false
+    updateDocumentTitle()
   }
-}
-
-function formatDraftTime(ts) {
-  if (!ts) return '未知时间'
-  try {
-    const d = new Date(ts)
-    const pad = (n) => n.toString().padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-  } catch { return '未知时间' }
 }
 
 function onCategoryConfirm({ selectedValues }) {
@@ -1385,12 +1402,21 @@ function formatFormulas() {
 // =============== P1-8: 确保当前笔记有 id（新建模式下，上传图片前先 POST 建空壳） ===============
 async function ensureNoteId() {
   if (isReallyEdit.value) return true
-  // 新建模式 → 先建空壳笔记
-  if (saving.value) return false
+  // 如果刚在请求中：等它完再决定；如果已成功保存 isReallyEdit 会变 true（因为 URL replace）
+  if (autoSaveInFlight) {
+    const t0 = Date.now()
+    while (autoSaveInFlight && Date.now() - t0 < 20000) {
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    if (isReallyEdit.value) return true
+  }
+  // 仍为新建态：强制 POST 一条空壳笔记（标题或内容给一个空格兜底），保证附件上传有 id
+  autoSaveInFlight = true
+  saveStatus.value = 'saving'
   saving.value = true
   try {
     const payload = {
-      title: form.title.trim(),
+      title: form.title.trim() || ' ',
       content: form.content || ' ',
       categoryId: form.categoryId,
       tagIds: form.tagIds,
@@ -1398,17 +1424,21 @@ async function ensureNoteId() {
       isPinned: form.isPinned
     }
     const created = await http.post('/notes', payload)
-    temporaryNoteId.value = created.id
-    // 清除"新建"草稿 key
-    try { localStorage.removeItem('note_draft/new') } catch {}
-    // URL 同步跳转到真正的编辑页（不改变内存中的表单）
+    cancelAutoSaveTimer()
+    lastSavedAt.value = Date.now()
+    saveStatus.value = 'saved'
+    pendingChanges = false
+    updateDocumentTitle()
     await router.replace(`/notes/${created.id}/edit`)
-    showToast('已自动创建草稿笔记')
+    showToast('已自动创建笔记')
     return true
   } catch (err) {
-    showToast('创建草稿失败')
+    saveStatus.value = 'error'
+    saveErrorMsg.value = err?.message || '未知错误'
+    showToast('创建笔记失败')
     return false
   } finally {
+    autoSaveInFlight = false
     saving.value = false
   }
 }
@@ -1484,78 +1514,37 @@ function onDrop(e) {
 }
 
 async function onSave() {
-  if (!form.title.trim() && !form.content.trim()) {
+  const res = await flushAutoSave({ forceEvenIfNotPending: true })
+  if (!res.ok) {
+    showToast('保存失败：' + (saveErrorMsg.value || ''))
+    return
+  }
+  if (res.blank) {
     showToast('标题和内容不能同时为空')
     return
   }
-  saving.value = true
-  try {
-    const payload = {
-      title: form.title.trim(),
-      content: form.content,
-      categoryId: form.categoryId,
-      tagIds: form.tagIds,
-      backgroundColor: form.backgroundColor || '',
-      isPinned: form.isPinned
-    }
-    if (isReallyEdit.value) {
-      await http.put(`/notes/${effectiveNoteId.value}`, payload)
-      showToast('已保存')
-    } else {
-      const created = await http.post('/notes', payload)
-      showToast('已创建')
-      clearDraft()
-      // 新笔记创建成功也记录快照 + 跳转后不再触发脏判断
-      lastSavedSnapshot.value = snapshotForm()
-      router.replace(`/notes/${created.id}/edit`)
-      return
-    }
-    clearDraft()
-    // 保存成功：更新快照，下次返回直接放行不再弹窗
-    lastSavedSnapshot.value = snapshotForm()
-  } finally {
-    saving.value = false
-  }
+  showToast('已保存')
 }
 
 async function onBack() {
-  // 完全没内容：直接离开，不调用保存（接口会拒绝标题+内容同时为空）
+  // 完全空白：直接离开
   const blank = !form.title.trim() && !form.content.trim()
-  if (blank || !isDirty()) {
+  if (blank && !pendingChanges) {
+    cancelAutoSaveTimer()
     router.back()
     return
   }
-  // 有内容/有改动：自动保存后再返回，不再弹窗询问
-  try {
-    saving.value = true
-    const payload = {
-      title: form.title.trim(),
-      content: form.content,
-      categoryId: form.categoryId,
-      tagIds: form.tagIds,
-      backgroundColor: form.backgroundColor || '',
-      isPinned: form.isPinned
-    }
-    if (isReallyEdit.value) {
-      await http.put(`/notes/${effectiveNoteId.value}`, payload)
-    } else {
-      const created = await http.post('/notes', payload)
-      clearDraft()
-      lastSavedSnapshot.value = snapshotForm()
-      // 新建笔记：先 replace 到 edit 路径，对齐编辑态；之后统一 router.back
-      // 但新建笔记直接返回列表更符合预期，这里不 replace，改完快照直接返回
-      form.id = created.id
-    }
-    clearDraft()
-    lastSavedSnapshot.value = snapshotForm()
-  } catch (e) {
-    // 保存失败：提示并中止返回，避免丢内容
+  // 有内容/有改动：flush 保存成功后返回；失败阻止离开
+  const res = await flushAutoSave({ forceEvenIfNotPending: false })
+  if (!res.ok) {
     showToast('保存失败，未离开')
-    saving.value = false
     return
-  } finally {
-    saving.value = false
   }
+  // 新建但空白：flushAutoSave silentIfBlank=false 会尝试保存，但 POST/PUT 可能被拒
+  if (res.blank) {
+    // 服务器拒绝空白笔记，直接离开不报错
+  }
+  cancelAutoSaveTimer()
   router.back()
 }
 
@@ -1625,7 +1614,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  saveDraft()
+  cancelAutoSaveTimer()
   document.title = '笔记'
 
   // 清理浮动栏的镜像 div
@@ -1689,6 +1678,57 @@ onUnmounted(() => {
 .color-icon {
   cursor: pointer;
 }
+
+/* ========== 保存状态条 ========== */
+.save-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 12px 6px;
+  font-size: 12px;
+  min-height: 22px;
+  line-height: 1;
+  color: #969799;
+  background: rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+  transition: color 0.2s, background 0.2s;
+}
+.save-status.is-clickable {
+  cursor: pointer;
+}
+.save-status.is-clickable:hover {
+  background: rgba(255, 230, 230, 0.6);
+}
+.save-status__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+.save-status--idle .save-status__dot { opacity: 0; }
+.save-status--saved .save-status__dot { background: #07c160; }
+.save-status--saving .save-status__dot {
+  background: #1989fa;
+  animation: savePulse 1s ease-in-out infinite;
+}
+.save-status--error { color: #ee0a24; }
+.save-status--error .save-status__dot { background: #ee0a24; }
+@keyframes savePulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50%      { opacity: 1;   transform: scale(1.1);  }
+}
+@media (prefers-color-scheme: dark) {
+  .save-status {
+    color: rgba(255,255,255,0.55);
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+  .save-status.is-clickable:hover { background: rgba(80, 0, 0, 0.4); }
+}
+
 .editor {
   flex: 1;
   display: flex;
