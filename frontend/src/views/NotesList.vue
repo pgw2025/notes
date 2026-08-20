@@ -32,9 +32,25 @@
           <van-icon v-if="n.isPinned" name="star" color="#ff976a" size="16" class="pin-icon" />
           <div class="note-title">{{ n.title || '无标题' }}</div>
           <van-icon
+            :name="n.isPinned ? 'star' : 'star-o'"
+            :color="n.isPinned ? '#ff976a' : undefined"
+            size="16"
+            class="edit-icon pin-action-icon"
+            :title="n.isPinned ? '取消置顶' : '置顶'"
+            @click.stop="onTogglePin(n)"
+          />
+          <van-icon
+            name="delete-o"
+            size="16"
+            class="edit-icon del-action-icon"
+            title="删除"
+            @click.stop="onDelete(n)"
+          />
+          <van-icon
             name="edit"
             size="16"
             class="edit-icon"
+            title="编辑"
             @click.stop="goEdit(n.id)"
           />
         </div>
@@ -281,6 +297,30 @@ onActivated(() => {
 }
 :global(body.dark) .edit-icon:active {
   background: rgba(255, 255, 255, 0.22);
+}
+/* 卡片顶部：置顶 / 删除 按钮修饰（复用 edit-icon 基础尺寸/hover） */
+.pin-action-icon {
+  opacity: 0.9;
+}
+.del-action-icon {
+  opacity: 0.8;
+  /* 删除按钮：红色系，作为警示语义 —— 亮/暗模式取 color-danger CSS 变量，
+     没变量时回退到 ee0a24，避免继承到与背景接近的颜色 */
+  color: var(--color-danger, #ee0a24);
+}
+.del-action-icon:hover {
+  /* 亮模式：danger 红淡底；暗模式：叠加下面 dark 覆盖 */
+  background: rgba(238, 10, 36, 0.12) !important;
+}
+:global(body.dark) .del-action-icon:hover {
+  background: rgba(255, 59, 71, 0.18) !important;
+  color: var(--color-danger, #ff3b47);
+}
+.del-action-icon:active {
+  background: rgba(238, 10, 36, 0.24) !important;
+}
+:global(body.dark) .del-action-icon:active {
+  background: rgba(255, 59, 71, 0.3) !important;
 }
 .note-title {
   flex: 1;

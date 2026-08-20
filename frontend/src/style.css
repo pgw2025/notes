@@ -236,19 +236,42 @@ body.dark .van-nav-bar {
 }
 
 /* 兜底：Vant 4 plain default 按钮的内联白底/黑字硬编码不在 CSS 变量体系里
-   （分类、标签、日期筛选按钮都是 plain + type=default，无筛选值时） */
-body.dark .van-button--default.van-button--plain {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-primary);
+   （分类、标签、日期筛选按钮 + NoteEdit 工具栏 H/H2/H3/B/I 等全部非 primary 按钮
+   均是 plain + type=default，无筛选值/非 primary 时）
+   注意：必须用 !important 才能覆盖 Vant internal .van-button--plain 的高优先级。
+   Vant 4 在 plain default 上同时通过 .van-button::before 这个伪元素额外铺底色做
+   ripple 层 / 占位底，必须一并清零才能真正去白底。 */
+body.dark .van-button.van-button--default.van-button--plain,
+body.dark .van-button.van-button--default.van-button--plain.van-button--small,
+body.dark .van-button.van-button--default.van-button--plain.van-button--normal {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
 }
-body.dark .van-button--default.van-button--plain:active,
-body.dark .van-button--default.van-button--plain:hover {
-  background: var(--surface-2);
+body.dark .van-button.van-button--default.van-button--plain::before {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  opacity: 0 !important;
+}
+body.dark .van-button.van-button--default.van-button--plain:active,
+body.dark .van-button.van-button--default.van-button--plain:hover {
+  background: var(--surface-2) !important;
+  background-color: var(--surface-2) !important;
 }
 /* 暗色下 plain primary 按钮已经正常，确保 plain + 自定义 type 的 icon 颜色可见 */
 body.dark .van-button--plain .van-icon {
   color: currentColor;
+}
+/* Vant 4 内部按钮内容层（文字包一层 span / .van-button__text）偶尔继承到黑字
+   （因为 HTML 节点不挂 button color），这里让所有按钮子层 inherit button color */
+body.dark .van-button--default.van-button--plain .van-button__content,
+body.dark .van-button--default.van-button--plain .van-button__text,
+body.dark .van-button--default.van-button--plain span {
+  color: inherit !important;
 }
 
 /* 空状态 van-empty 的图片区域默认可能有白底占位：切透明让 app-bg 透过来 */
