@@ -75,19 +75,25 @@
 </template>
 
 <script setup>
-import { ref, onActivated, onMounted } from 'vue'
+import { ref, onActivated, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
 import { formatTime } from '../utils/format'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 
 defineOptions({ name: 'NotesList' })
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const theme = useThemeStore()
+
+// 使用 computed：auto 模式下当系统从 light→dark（或用户手动切 mode）时，
+// 卡片背景色也会实时切换，不需要重新拉列表。
+const isDarkEffective = computed(() => theme.isDarkEffective)
 
 const notes = ref([])
 const categories = ref([])
@@ -97,7 +103,7 @@ const loading = ref(false)
 
 // 笔记卡片样式：背景色 + 文字色
 function cardStyle(n) {
-  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, isDarkEffective.value)
   const color = getContrastColor(bg)
   return {
     background: bg,
@@ -107,7 +113,7 @@ function cardStyle(n) {
 
 // Tag 样式：浅色背景 → 默认蓝/灰；深色背景 → 半透明白底白字
 function tagStyle(n) {
-  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, isDarkEffective.value)
   if (isDarkColor(bg)) {
     return {
       background: 'rgba(255, 255, 255, 0.2)',
@@ -120,8 +126,8 @@ function tagStyle(n) {
 
 // 时间文字色：深色背景 → 半透明白；浅色背景 → 中灰（保证可读性）
 function timeColor(n) {
-  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor)
-  return isDarkColor(bg) ? 'rgba(255, 255, 255, 0.75)' : '#969799'
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, isDarkEffective.value)
+  return isDarkColor(bg) ? 'rgba(255, 255, 255, 0.75)' : 'var(--text-tertiary)'
 }
 
 async function onTogglePin(n) {
@@ -265,9 +271,15 @@ onActivated(() => {
   opacity: 1;
   transform: translateY(-1px);
 }
+:global(body.dark) .edit-icon:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
 .edit-icon:active {
   background: rgba(128, 128, 128, 0.32);
   transform: translateY(0);
+}
+:global(body.dark) .edit-icon:active {
+  background: rgba(255, 255, 255, 0.22);
 }
 .note-title {
   flex: 1;
@@ -336,13 +348,13 @@ onActivated(() => {
   }
   .notes-grid-item {
     margin-bottom: 0; /* 桌面端用 grid gap 控制间距 */
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
     transition: box-shadow 0.2s, transform 0.2s;
   }
   .notes-grid-item:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
     transform: translateY(-2px);
   }
   .note-card {

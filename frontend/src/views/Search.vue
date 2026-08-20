@@ -85,7 +85,7 @@ function onClear() {
 }
 .result-preview {
   font-size: 13px;
-  color: #969799;
+  color: var(--text-tertiary);
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
@@ -93,7 +93,7 @@ function onClear() {
 }
 .result-time {
   font-size: 12px;
-  color: #c8c9cc;
+  color: var(--text-disabled);
 }
 
 /* 桌面端：居中阅读宽度 */

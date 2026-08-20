@@ -330,9 +330,9 @@ watch(() => filters.keyword, () => {
   padding-bottom: 80px;
 }
 .filter-bar {
-  background: #fff;
+  background: var(--surface);
   padding: 8px 12px 12px;
-  border-bottom: 1px solid #ebedf0;
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 46px; /* 避让 van-nav-bar fixed */
   z-index: 20;
@@ -345,11 +345,11 @@ watch(() => filters.keyword, () => {
 }
 .filter-panel {
   padding: 10px 4px 6px;
-  border-top: 1px dashed #ebedf0;
+  border-top: 1px dashed var(--border);
 }
 .filter-title {
   font-size: 13px;
-  color: #969799;
+  color: var(--text-tertiary);
   margin-bottom: 8px;
 }
 .filter-chip {
@@ -384,8 +384,8 @@ watch(() => filters.keyword, () => {
 }
 .year-group {
   margin-bottom: 10px;
-  background: #fff;
-  border: 1px solid #ebedf0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -394,7 +394,7 @@ watch(() => filters.keyword, () => {
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: #f7f8fa;
+  background: var(--surface-2);
   cursor: pointer;
   user-select: none;
 }
@@ -408,7 +408,7 @@ watch(() => filters.keyword, () => {
 
 .year-body { padding: 0 4px 4px; }
 
-.month-group { border-top: 1px solid #f2f3f5; }
+.month-group { border-top: 1px solid var(--surface-2); }
 .month-group:first-child { border-top: none; }
 
 .month-header {
@@ -417,7 +417,7 @@ watch(() => filters.keyword, () => {
   gap: 6px;
   padding: 10px 14px;
   cursor: pointer;
-  background: #fff;
+  background: var(--surface);
   user-select: none;
 }
 .month-title {
@@ -425,7 +425,7 @@ watch(() => filters.keyword, () => {
   font-size: 14px;
   flex: 1;
 }
-.month-count { font-size: 12px; color: #969799; }
+.month-count { font-size: 12px; color: var(--text-tertiary); }
 .month-current { margin-left: 4px; }
 
 .month-body { padding: 0 10px 8px; }
@@ -442,8 +442,11 @@ watch(() => filters.keyword, () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #1989fa;
-  box-shadow: 0 0 0 3px #dbe9ff;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(25, 137, 250, 0.22);
+}
+:global(body.dark) .day-dot {
+  box-shadow: 0 0 0 3px rgba(51, 154, 248, 0.25);
 }
 .day-group::before {
   content: '';
@@ -452,7 +455,7 @@ watch(() => filters.keyword, () => {
   top: 14px;
   bottom: -4px;
   width: 2px;
-  background: #ebedf0;
+  background: var(--border);
 }
 .day-group:last-child::before {
   display: none;
@@ -465,12 +468,12 @@ watch(() => filters.keyword, () => {
 }
 .day-title {
   font-size: 13px;
-  color: #646566;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 .day-count {
   font-size: 12px;
-  color: #c8c9cc;
+  color: var(--text-disabled);
 }
 
 .notes-list {
@@ -479,20 +482,20 @@ watch(() => filters.keyword, () => {
   gap: 8px;
 }
 .note-card {
-  background: #f7f8fa;
-  border: 1px solid #ebedf0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px 12px;
   transition: box-shadow 0.2s, transform 0.2s;
   cursor: pointer;
 }
 .note-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 .note-time {
   font-size: 12px;
-  color: #1989fa;
+  color: var(--color-primary);
   font-weight: 500;
   margin-bottom: 4px;
 }
@@ -506,7 +509,7 @@ watch(() => filters.keyword, () => {
 }
 .note-preview {
   font-size: 13px;
-  color: #646566;
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

@@ -75,6 +75,14 @@
       @change="onImportFile"
     />
 
+    <van-cell-group inset style="margin-top: 16px" title="显示">
+      <van-cell title="外观主题" icon="eye-o" @click="showThemeSheet = true">
+        <template #value>
+          <span class="theme-pill" :class="`theme-pill--${theme.mode}`">{{ themeLabel }}</span>
+        </template>
+      </van-cell>
+    </van-cell-group>
+
     <van-cell-group inset style="margin-top: 16px" title="笔记外观">
       <van-cell
         title="默认笔记颜色"
@@ -115,6 +123,16 @@
       close-on-click-action
     />
 
+    <!-- 外观主题选择 -->
+    <van-action-sheet
+      v-model:show="showThemeSheet"
+      title="外观主题"
+      :actions="themeActions"
+      @select="onThemeSelect"
+      cancel-text="取消"
+      close-on-click-action
+    />
+
     <!-- 导入进度 -->
     <van-overlay :show="importing" @click.stop>
       <div class="import-overlay">
@@ -131,18 +149,40 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast, showSuccessToast } from 'vant'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore, MODES } from '../stores/theme'
 import ColorPicker from '../components/ColorPicker.vue'
 import { DEFAULT_NOTE_COLOR, isValidHex } from '../utils/color'
 import { exportAllNotes, importNotes } from '../utils/exportImport'
 
 const router = useRouter()
 const auth = useAuthStore()
+const theme = useThemeStore()
 const avatarInput = ref(null)
 const editing = ref(false)
 const saving = ref(false)
 const uploadingAvatar = ref(false)
 
 const form = ref({ displayName: '' })
+
+// 外观主题
+const showThemeSheet = ref(false)
+const THEME_META = {
+  auto:  { label: '跟随系统', desc: '自动匹配系统深色/浅色设置' },
+  light: { label: '浅色模式', desc: '始终使用浅色界面' },
+  dark:  { label: '深色模式', desc: '始终使用深色界面' }
+}
+const themeActions = computed(() => MODES.map((m) => ({
+  name: THEME_META[m].label,
+  subname: THEME_META[m].desc,
+  value: m
+})))
+const themeLabel = computed(() => THEME_META[theme.mode]?.label || '跟随系统')
+function onThemeSelect({ value }) {
+  if (!MODES.includes(value)) return
+  theme.setMode(value)
+  showThemeSheet.value = false
+  showToast(`已切换为「${THEME_META[value].label}」`)
+}
 
 // 默认笔记颜色（null 表示用系统白色）
 const showColorPicker = ref(false)
@@ -312,8 +352,9 @@ async function onLogout() {
   align-items: center;
   gap: 16px;
   padding: 24px 20px;
-  background: #fff;
-  border-bottom: 1px solid #ebedf0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s, border-color 0.2s;
 }
 .avatar-wrap {
   position: relative;
@@ -347,6 +388,7 @@ async function onLogout() {
 .profile-name {
   font-size: 18px;
   font-weight: 600;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -356,6 +398,7 @@ async function onLogout() {
 .name-edit-icon {
   cursor: pointer;
   flex-shrink: 0;
+  color: var(--text-tertiary) !important;
 }
 .name-field {
   padding: 0;
@@ -363,31 +406,65 @@ async function onLogout() {
 .name-field :deep(.van-field__control) {
   font-size: 18px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 .profile-email {
   font-size: 13px;
-  color: #969799;
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 .save-bar {
   padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #ebedf0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 .logout {
   margin: 32px 16px 0;
+}
+.theme-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.theme-pill--auto { color: var(--text-secondary); }
+.theme-pill--light {
+  background: rgba(255, 220, 150, 0.18);
+  color: #b37a00;
+  border-color: rgba(179, 122, 0, 0.2);
+}
+body.dark .theme-pill--light {
+  background: rgba(255, 220, 150, 0.14);
+  color: #ffd36e;
+  border-color: rgba(255, 211, 110, 0.25);
+}
+.theme-pill--dark {
+  background: rgba(120, 140, 255, 0.18);
+  color: #5468ff;
+  border-color: rgba(84, 104, 255, 0.25);
+}
+body.dark .theme-pill--dark {
+  background: rgba(120, 140, 255, 0.22);
+  color: #a7b3ff;
+  border-color: rgba(167, 179, 255, 0.3);
 }
 .color-swatch {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
   display: inline-block;
   vertical-align: middle;
 }
 .cell-hint {
   font-size: 12px;
-  color: #969799;
+  color: var(--text-tertiary);
   padding: 6px 16px 12px;
 }
 .import-overlay {

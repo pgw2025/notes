@@ -193,9 +193,11 @@ import { formatDateTime } from '../utils/format'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { exportSingleNote } from '../utils/exportImport'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 
 const route = useRoute()
 const auth = useAuthStore()
+const theme = useThemeStore()
 const note = ref(null)
 
 // 导出
@@ -225,12 +227,14 @@ const versions = ref([])
 const activeVersion = ref(null)
 const restoringId = ref(null)
 
-// 笔记有效背景色（笔记色 → 用户默认色 → 系统白）
+// 笔记有效背景色（笔记色 → 用户默认色 → 系统默认白/深蓝灰）
 const effectiveBg = computed(() =>
-  note.value ? resolveNoteColor(note.value.backgroundColor, auth.user?.defaultNoteColor) : '#FFFFFF'
+  note.value
+    ? resolveNoteColor(note.value.backgroundColor, auth.user?.defaultNoteColor, theme.isDarkEffective)
+    : (theme.isDarkEffective ? '#20242c' : '#FFFFFF')
 )
 const textColor = computed(() => getContrastColor(effectiveBg.value))
-const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : '#969799')
+const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : 'var(--text-tertiary)')
 const navIconColor = computed(() => isDarkColor(effectiveBg.value) ? '#FFFFFF' : '#323233')
 
 // 整页背景色
@@ -389,14 +393,14 @@ onMounted(loadNote)
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #646566;
+  color: var(--text-secondary);
   margin: 24px 0 8px;
   padding: 0 4px;
 }
 .att-icon {
   margin-right: 8px;
   font-size: 18px;
-  color: #1989fa;
+  color: var(--color-primary);
 }
 .loading {
   display: flex;
@@ -417,15 +421,18 @@ onMounted(loadNote)
   background: transparent;
 }
 .version-item {
-  background: #fff;
-  border: 1px solid #ebedf0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
   margin-bottom: 10px;
 }
 .version-item.is-current {
-  border-color: #07c160;
-  background: #f3fbf5;
+  border-color: var(--color-success);
+  background: rgba(7, 193, 96, 0.08);
+}
+:global(body.dark) .version-item.is-current {
+  background: rgba(32, 206, 120, 0.12);
 }
 .version-title-row {
   display: flex;
@@ -436,7 +443,7 @@ onMounted(loadNote)
 .version-time {
   font-size: 13px;
   font-weight: 600;
-  color: #323233;
+  color: var(--text-primary);
 }
 .version-preview-title {
   font-size: 14px;
@@ -448,7 +455,7 @@ onMounted(loadNote)
 }
 .version-preview-body {
   font-size: 12px;
-  color: #646566;
+  color: var(--text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -465,7 +472,7 @@ onMounted(loadNote)
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  border-top: 1px dashed #ebedf0;
+  border-top: 1px dashed var(--border);
   padding-top: 8px;
 }
 
@@ -485,7 +492,7 @@ onMounted(loadNote)
   font-weight: 700;
   margin: 0 0 16px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #ebedf0;
+  border-bottom: 1px solid var(--border);
 }
 
 /* 移动端默认：第二行工具栏布局 */

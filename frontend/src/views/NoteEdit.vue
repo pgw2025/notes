@@ -466,12 +466,14 @@ import MarkdownBody from '../components/MarkdownBody.vue'
 import ColorPicker from '../components/ColorPicker.vue'
 import { useResponsive } from '../composables/useResponsive'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 
 const route = useRoute()
 const router = useRouter()
 const { isDesktop } = useResponsive()
 const auth = useAuthStore()
+const theme = useThemeStore()
 
 const noteId = computed(() => route.params.id)
 const isEdit = computed(() => !!noteId.value)
@@ -764,10 +766,10 @@ const chipStyle = computed(() => {
   }
 })
 
-const effectiveBg = computed(() => resolveNoteColor(form.backgroundColor, auth.user?.defaultNoteColor))
+const effectiveBg = computed(() => resolveNoteColor(form.backgroundColor, auth.user?.defaultNoteColor, theme.isDarkEffective))
 const textColor = computed(() => getContrastColor(effectiveBg.value))
-const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : '#969799')
-const metaBorderColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.15)' : '#ebedf0')
+const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : 'var(--text-tertiary)')
+const metaBorderColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.15)' : 'var(--border)')
 
 const navTitle = computed(() => (isEdit.value ? '编辑笔记' : '新建笔记'))
 

@@ -86,7 +86,7 @@ async function onSubmit() {
   text-align: center;
   margin-top: 20px;
   font-size: 14px;
-  color: #969799;
+  color: var(--text-tertiary);
 }
 
 /* 桌面端：卡片式表单 */
@@ -98,10 +98,10 @@ async function onSubmit() {
     padding: 0 24px;
   }
   .auth-page :deep(.van-form) {
-    background: #fff;
+    background: var(--surface);
     border-radius: 12px;
     padding: 24px 32px 32px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-sm);
   }
   .auth-page :deep(.van-cell-group--inset) {
     margin: 0;

@@ -5,8 +5,15 @@
  * 由用户自己管理（添加/删除）。后端在用户注册时自动初始化一份默认色板。
  */
 
-/** 系统默认色（用户没设默认色、笔记也没设色时用） */
-export const DEFAULT_NOTE_COLOR = '#FFFFFF'
+/** 系统默认色（用户没设默认色、笔记也没设色时用）
+ *  - 浅色模式下：纯白 #FFFFFF
+ *  - 深色模式下：Material Dark Surface Variant（深蓝灰） #20242c，不突兀
+ *  方案 A：不"篡改"用户/笔记显式指定的颜色；仅在 resolveNoteColor 走到系统默认分支时
+ *  根据当前 isDarkEffective 选一个合适的默认色板底色。
+ */
+export const DEFAULT_NOTE_COLOR_LIGHT = '#FFFFFF'
+export const DEFAULT_NOTE_COLOR_DARK  = '#20242c'
+export const DEFAULT_NOTE_COLOR = DEFAULT_NOTE_COLOR_LIGHT  // 兼容老引用（浅色语义常量）
 
 /**
  * 校验是否为合法的 HEX 颜色字符串（#RRGGBB）
@@ -62,13 +69,17 @@ export function isDarkColor(bgHex) {
 }
 
 /**
- * 解析笔记的有效背景色：
- * 1. 优先用笔记自身色
+ * 解析笔记的有效背景色（方案 A）：
+ * 1. 优先用笔记自身色（显式写了一律尊重，不再做任何"压暗"转换）
  * 2. 否则用用户默认色
- * 3. 都没有则用系统白色
+ * 3. 都没有 → 系统默认色：根据 isDarkEffective 切换
+ *
+ * @param {string|null} noteColor        笔记自身保存的 backgroundColor (#RRGGBB)
+ * @param {string|null} userDefaultColor 用户默认笔记颜色（CustomDefaultColor）
+ * @param {boolean}      isDarkEffective 当前生效的主题是否深色
  */
-export function resolveNoteColor(noteColor, userDefaultColor) {
+export function resolveNoteColor(noteColor, userDefaultColor, isDarkEffective = false) {
   if (noteColor && isValidHex(noteColor)) return noteColor
   if (userDefaultColor && isValidHex(userDefaultColor)) return userDefaultColor
-  return DEFAULT_NOTE_COLOR
+  return isDarkEffective ? DEFAULT_NOTE_COLOR_DARK : DEFAULT_NOTE_COLOR_LIGHT
 }

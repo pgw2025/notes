@@ -83,8 +83,8 @@ const navItems = [
   position: sticky;
   top: 0;
   height: 100vh;
-  background: #fff;
-  border-right: 1px solid #ebedf0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 20px 0;
@@ -98,7 +98,7 @@ const navItems = [
   padding: 0 20px 24px;
   font-size: 20px;
   font-weight: 700;
-  color: #323233;
+  color: var(--text-primary);
 }
 .brand-icon {
   font-size: 24px;
@@ -118,21 +118,21 @@ const navItems = [
   gap: 12px;
   padding: 11px 16px;
   border-radius: 8px;
-  color: #323233;
+  color: var(--text-primary);
   font-size: 15px;
   transition: background 0.2s, color 0.2s;
 }
 .sidebar-item:hover {
-  background: #f2f3f5;
+  background: var(--surface-2);
 }
 .sidebar-item.router-link-active {
-  background: #1989fa;
+  background: var(--color-primary);
   color: #fff;
 }
 
 .sidebar-footer {
   padding: 12px 12px 0;
-  border-top: 1px solid #ebedf0;
+  border-top: 1px solid var(--border);
   margin-top: 8px;
 }
 .sidebar-new-btn {
@@ -142,13 +142,13 @@ const navItems = [
   gap: 6px;
   padding: 10px;
   border-radius: 8px;
-  background: #1989fa;
+  background: var(--color-primary);
   color: #fff;
   font-size: 14px;
   font-weight: 500;
 }
 .sidebar-new-btn:hover {
-  background: #157be0;
+  filter: brightness(0.92);
 }
 
 .app-main {
@@ -163,7 +163,7 @@ const navItems = [
     margin: 0 auto;
     min-height: 100vh;
     background: var(--app-bg);
-    box-shadow: 0 0 24px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-sm);
     position: relative;
   }
 }

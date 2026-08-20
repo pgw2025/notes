@@ -89,7 +89,7 @@ async function onSubmit() {
 }
 .auth-header p {
   margin: 0;
-  color: #969799;
+  color: var(--text-tertiary);
   font-size: 14px;
 }
 .auth-actions {
@@ -99,7 +99,7 @@ async function onSubmit() {
   text-align: center;
   margin-top: 20px;
   font-size: 14px;
-  color: #969799;
+  color: var(--text-tertiary);
 }
 
 /* 桌面端：卡片式表单 */
@@ -112,18 +112,18 @@ async function onSubmit() {
   .auth-page > .van-form {
     width: 100%;
     max-width: 420px;
-    background: #fff;
+    background: var(--surface);
     border-radius: 12px;
   }
   .auth-page > .auth-header {
     padding: 40px 32px 24px;
     margin-bottom: 0;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-sm);
   }
   .auth-page > .van-form {
     padding: 24px 32px 32px;
     margin-top: 12px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-sm);
   }
   .auth-page > .van-form :deep(.van-cell-group--inset) {
     margin: 0;

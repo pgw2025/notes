@@ -192,7 +192,7 @@ function onConfirm() {
   font-weight: 600;
   text-align: center;
   margin-bottom: 16px;
-  color: #323233;
+  color: var(--text-primary);
 }
 
 .color-grid {
@@ -206,7 +206,7 @@ function onConfirm() {
   position: relative;
   height: 56px;
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -220,12 +220,15 @@ function onConfirm() {
 }
 
 .color-item.active {
-  border: 2px solid #1989fa;
+  border: 2px solid var(--color-primary);
   box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.2);
+}
+:global(body.dark) .color-item.active {
+  box-shadow: 0 0 0 2px rgba(51, 154, 248, 0.3);
 }
 
 .color-item.delete-mode {
-  border: 2px dashed #ee0a24;
+  border: 2px dashed var(--color-danger);
 }
 
 .check-icon {
@@ -238,20 +241,20 @@ function onConfirm() {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: #ee0a24;
+  background: var(--color-danger);
   border-radius: 50%;
   padding: 2px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 .add-btn {
-  background: #f7f8fa;
-  border: 1px dashed #dcdee0;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
   cursor: pointer;
 }
 
 .add-btn:hover {
-  background: #f2f3f5;
+  background: var(--surface-3);
 }
 
 .hidden-color-input {
@@ -269,7 +272,7 @@ function onConfirm() {
 
 .empty-text {
   font-size: 13px;
-  color: #969799;
+  color: var(--text-tertiary);
   margin: 12px 0 16px;
 }
 
@@ -291,7 +294,7 @@ function onConfirm() {
 .delete-hint {
   text-align: center;
   font-size: 12px;
-  color: #ee0a24;
+  color: var(--color-danger);
   margin-top: 10px;
 }
 
