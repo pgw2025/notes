@@ -6,7 +6,8 @@
       @click-left="onBack"
     >
       <template #right>
-        <div class="nav-actions">
+        <!-- 桌面端单行布局：按钮在标题右侧 -->
+        <div class="nav-actions nav-actions--desktop">
           <van-icon
             :name="form.isPinned ? 'star' : 'star-o'"
             size="20"
@@ -24,6 +25,22 @@
         </div>
       </template>
     </van-nav-bar>
+
+    <!-- 移动端第二行工具栏：按钮独占一行，和标题完全不重叠 -->
+    <div class="nav-actions nav-actions--mobile">
+      <van-icon
+        :name="form.isPinned ? 'star' : 'star-o'"
+        size="20"
+        :color="form.isPinned ? '#ff976a' : undefined"
+        title="置顶"
+        @click="form.isPinned = !form.isPinned"
+      />
+      <span class="nav-icon nav-char-btn" title="大纲" @click="showOutline = !showOutline">☰</span>
+      <span class="nav-icon nav-char-btn" title="搜索替换" @click="openSearch">🔍</span>
+      <span class="nav-icon nav-char-btn" :title="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">{{ isFullscreen ? '⤢' : '⛶' }}</span>
+      <van-icon name="edit" size="20" class="color-icon" title="背景色" @click="showColorPicker = true" />
+      <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
+    </div>
 
     <div class="editor" :style="editorStyle">
       <van-field
@@ -1457,38 +1474,64 @@ onUnmounted(() => {
   backdrop-filter: blur(2px);
 }
 
-/* 移动端默认（无键盘）的底部预留 & 导航栏紧凑布局 */
+/* 移动端默认（无键盘）的底部预留 & 第二行工具栏布局 */
 @media (max-width: 1023px) {
   .content-area {
     padding-bottom: 90px;
   }
-  /* 防止 title 被右侧按钮挤爆 */
+  /* 移动端：van-nav-bar 标题独占第一行，右侧按钮在导航栏slot里隐藏 */
   :deep(.van-nav-bar__title) {
-    max-width: 36%;
+    max-width: 70%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 15px;
+    font-size: 16px;
   }
-  /* 右侧按钮区紧凑排列 */
-  .nav-actions {
-    gap: 6px !important;
+  .nav-actions--desktop {
+    display: none !important;
   }
-  .nav-char-btn {
-    width: 20px;
-    height: 20px;
-    font-size: 15px;
+  /* 移动端第二行工具栏：全宽独占一行 */
+  .nav-actions--mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 8px 10px 10px;
+    gap: 4px;
+    background: inherit;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
   }
-  .nav-icon { font-size: 18px; }
-  .nav-actions .van-icon { font-size: 18px; }
-  .nav-actions .van-button {
-    padding: 0 10px;
+  .nav-actions--mobile .nav-char-btn {
+    width: 28px;
     height: 28px;
-    line-height: 28px;
-    font-size: 13px;
+    font-size: 18px;
   }
-  /* 颜色编辑图标保持小尺寸 */
-  .color-icon { font-size: 18px; }
+  .nav-actions--mobile .van-icon { font-size: 20px; }
+  .nav-actions--mobile .color-icon { font-size: 20px; }
+  .nav-actions--mobile .van-button {
+    padding: 0 14px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 13px;
+    flex: 0 0 auto;
+  }
+  /* 全屏态下移动端：工具栏也沉浸 */
+  .page--fullscreen .nav-actions--mobile {
+    background: transparent;
+    backdrop-filter: saturate(1.3) blur(6px);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+  }
+}
+
+/* 桌面端：保持单行布局，隐藏移动端第二行工具栏 */
+@media (min-width: 1024px) {
+  .nav-actions--mobile {
+    display: none !important;
+  }
+  .nav-actions--desktop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 }
 
 .editor-body {
