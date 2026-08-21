@@ -12,11 +12,17 @@
     </van-tabs>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <div v-if="!loading && notes.length === 0" class="empty">
+      <van-list
+        v-model:loading="listLoading"
+        :finished="listFinished"
+        finished-text=""
+        @load="onLoadMore"
+      >
+      <div v-if="!loading && notes.length === 0 && listFinished" class="empty">
         <van-empty description="还没有笔记，点击右上角创建" />
       </div>
 
-      <van-cell-group v-else inset class="notes-grid" style="margin-top: 8px">
+      <van-cell-group v-if="notes.length > 0" inset class="notes-grid" style="margin-top: 8px">
     <van-swipe-cell
       v-for="n in notes"
       :key="n.id"
@@ -86,6 +92,7 @@
       </template>
     </van-swipe-cell>
   </van-cell-group>
+      </van-list>
     </van-pull-refresh>
   </div>
 </template>
@@ -116,6 +123,10 @@ const categories = ref([])
 const activeTab = ref(0)
 const refreshing = ref(false)
 const loading = ref(false)
+const listLoading = ref(false)
+const listFinished = ref(false)
+const currentPage = ref(1)
+const pageSize = 20
 
 // 笔记卡片样式：背景色 + 文字色
 function cardStyle(n) {
@@ -185,13 +196,39 @@ async function loadCategories() {
   }
 }
 
+function resetList() {
+  notes.value = []
+  currentPage.value = 1
+  listFinished.value = false
+}
+
 async function loadNotes() {
+  // 首次加载 / 刷新：重置后加载第一页
   loading.value = true
+  resetList()
   try {
-    const categoryId = activeTab.value > 0 ? categories.value[activeTab.value - 1]?.id : undefined
-    notes.value = await http.get('/notes', { params: { categoryId } })
+    await fetchPage()
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchPage() {
+  const categoryId = activeTab.value > 0 ? categories.value[activeTab.value - 1]?.id : undefined
+  const res = await http.get('/notes', { params: { categoryId, page: currentPage.value, pageSize } })
+  notes.value.push(...res.items)
+  if (!res.hasMore) listFinished.value = true
+}
+
+async function onLoadMore() {
+  try {
+    currentPage.value++
+    await fetchPage()
+  } catch {
+    // 失败回退页码
+    currentPage.value--
+  } finally {
+    listLoading.value = false
   }
 }
 

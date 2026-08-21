@@ -28,6 +28,13 @@ public record NoteListItemDto(
     bool IsPinned,
     DateTime? PinnedAt);
 
+public record NoteListResponseDto(
+    List<NoteListItemDto> Items,
+    int Total,
+    int Page,
+    int PageSize,
+    bool HasMore);
+
 public record CreateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned);
 
 public record UpdateNoteDto(string Title, string Content, int? CategoryId, List<int> TagIds, string? BackgroundColor, bool? IsPinned, bool? CreateVersion = null);

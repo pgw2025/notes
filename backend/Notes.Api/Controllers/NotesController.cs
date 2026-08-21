@@ -36,8 +36,11 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<NoteListItemDto>>> List([FromQuery] int? categoryId)
+    public async Task<ActionResult<NoteListResponseDto>> List([FromQuery] int? categoryId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
         var userDefaultColor = await GetUserDefaultColorAsync();
 
         var query = _db.Notes
@@ -48,13 +51,20 @@ public class NotesController : ControllerBase
         if (categoryId.HasValue)
             query = query.Where(n => n.CategoryId == categoryId);
 
+        var totalCount = await query.CountAsync();
+
         var notes = await query
             .OrderByDescending(n => n.IsPinned)
             .ThenByDescending(n => n.PinnedAt)
             .ThenByDescending(n => n.UpdatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(notes.Select(n => MapToListItem(n, userDefaultColor)));
+        var items = notes.Select(n => MapToListItem(n, userDefaultColor)).ToList();
+        var hasMore = (page - 1) * pageSize + items.Count < totalCount;
+
+        return Ok(new NoteListResponseDto(items, totalCount, page, pageSize, hasMore));
     }
 
     [HttpGet("{id:int}")]
@@ -75,26 +85,38 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<ActionResult<IEnumerable<NoteListItemDto>>> Search([FromQuery] string q)
+    public async Task<ActionResult<NoteListResponseDto>> Search([FromQuery] string q, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         if (string.IsNullOrWhiteSpace(q))
-            return Ok(Array.Empty<NoteListItemDto>());
+            return Ok(new NoteListResponseDto(new List<NoteListItemDto>(), 0, page, pageSize, false));
+
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
         var userDefaultColor = await GetUserDefaultColorAsync();
 
         var term = q.Trim();
-        var notes = await _db.Notes
+        var query = _db.Notes
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Where(n => n.UserId == UserId &&
                 (EF.Functions.Collate(n.Title, "utf8mb4_general_ci").Contains(term) ||
-                 EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term)))
+                 EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term)));
+
+        var totalCount = await query.CountAsync();
+
+        var notes = await query
             .OrderByDescending(n => n.IsPinned)
             .ThenByDescending(n => n.PinnedAt)
             .ThenByDescending(n => n.UpdatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(notes.Select(n => MapToListItem(n, userDefaultColor)));
+        var items = notes.Select(n => MapToListItem(n, userDefaultColor)).ToList();
+        var hasMore = (page - 1) * pageSize + items.Count < totalCount;
+
+        return Ok(new NoteListResponseDto(items, totalCount, page, pageSize, hasMore));
     }
 
     [HttpGet("timeline")]

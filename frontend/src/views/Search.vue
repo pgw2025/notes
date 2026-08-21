@@ -18,7 +18,14 @@
       <div v-if="results.length === 0" class="empty">
         <van-empty description="未找到相关笔记" />
       </div>
-      <van-cell-group v-else inset style="margin-top: 8px">
+      <van-list
+        v-else
+        v-model:loading="loading"
+        :finished="finished"
+        finished-text=""
+        @load="onLoadMore"
+      >
+      <van-cell-group inset style="margin-top: 8px">
         <van-cell
           v-for="n in results"
           :key="n.id"
@@ -35,6 +42,7 @@
           </template>
         </van-cell>
       </van-cell-group>
+      </van-list>
     </div>
 
     <div v-else class="empty">
@@ -51,6 +59,10 @@ import { formatTime } from '../utils/format'
 const keyword = ref('')
 const results = ref([])
 const searched = ref(false)
+const loading = ref(false)
+const finished = ref(false)
+const currentPage = ref(1)
+const pageSize = 20
 let timer = null
 
 async function onSearch() {
@@ -60,13 +72,34 @@ async function onSearch() {
     results.value = []
     return
   }
-  results.value = await http.get('/notes/search', { params: { q } })
+  // 重置
+  results.value = []
+  currentPage.value = 1
+  finished.value = false
+  const res = await http.get('/notes/search', { params: { q, page: currentPage.value, pageSize } })
+  results.value = res.items
+  if (!res.hasMore) finished.value = true
   searched.value = true
+}
+
+async function onLoadMore() {
+  try {
+    currentPage.value++
+    const q = keyword.value.trim()
+    const res = await http.get('/notes/search', { params: { q, page: currentPage.value, pageSize } })
+    results.value.push(...res.items)
+    if (!res.hasMore) finished.value = true
+  } catch {
+    currentPage.value--
+  } finally {
+    loading.value = false
+  }
 }
 
 function onClear() {
   searched.value = false
   results.value = []
+  finished.value = false
 }
 </script>
 
