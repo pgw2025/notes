@@ -30,11 +30,12 @@
       <el-table-column label="注册时间" width="170">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" align="center">
+      <el-table-column label="操作" width="240" align="center">
         <template #default="{ row }">
           <el-button size="small" @click="openResetPwd(row)">重置密码</el-button>
           <el-button v-if="!row.lockedOut" size="small" type="danger" plain @click="toggleStatus(row, true)">禁用</el-button>
           <el-button v-else size="small" type="success" plain @click="toggleStatus(row, false)">启用</el-button>
+          <el-button v-if="!row.isAdmin && row.email !== auth.email" size="small" type="danger" plain @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -66,9 +67,11 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '../api/http'
+import { useAuthStore } from '../stores/auth'
 
 const query = ref('')
 const users = ref([])
+const auth = useAuthStore()
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
@@ -124,6 +127,26 @@ async function toggleStatus(row, locked) {
     ElMessage.success(locked ? '已禁用' : '已启用')
   } catch (e) {
     ElMessage.error(e.response?.data?.message || '操作失败')
+  }
+}
+
+async function handleDelete(row) {
+  const name = row.displayName || row.email
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除用户「${name}」吗？该用户的 ${row.noteCount} 篇笔记、附件、分类、标签及头像将一并删除，操作不可恢复。`,
+      '删除确认',
+      { type: 'error', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await http.delete(`/admin/users/${row.id}`)
+    ElMessage.success('已删除')
+    load()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '删除失败')
   }
 }
 
