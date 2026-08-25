@@ -1,16 +1,22 @@
 <template>
   <div class="page">
-    <van-nav-bar title="笔记">
+    <van-nav-bar :title="currentCategoryName">
+      <template #left>
+        <!-- 移动端：菜单按钮唤起抽屉 -->
+        <van-icon name="bars" size="20" class="mobile-only" @click="showDrawer = true" />
+      </template>
       <template #right>
         <van-icon name="plus" size="22" @click="$router.push('/notes/new')" />
       </template>
     </van-nav-bar>
 
-    <van-tabs v-model:active="activeTab" sticky @change="onTabChange">
-      <van-tab title="全部" />
-      <van-tab v-for="c in categories" :key="c.id" :title="c.name" />
-    </van-tabs>
+    <div class="layout">
+      <!-- 桌面端：常驻侧边栏 -->
+      <aside class="sidebar desktop-only">
+        <CategoryNav v-model="activeCategoryId" :categories="categories" />
+      </aside>
 
+      <main class="content">
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
       <van-list
         v-model:loading="listLoading"
@@ -94,11 +100,22 @@
   </van-cell-group>
       </van-list>
     </van-pull-refresh>
+      </main>
+    </div>
+
+    <!-- 移动端：抽屉 -->
+    <van-popup
+      v-model:show="showDrawer"
+      position="left"
+      :style="{ width: '70%', maxWidth: '300px', height: '100%' }"
+    >
+      <CategoryNav v-model="activeCategoryId" :categories="categories" />
+    </van-popup>
   </div>
 </template>
 
 <script setup>
-import { ref, onActivated, onMounted, computed } from 'vue'
+import { ref, onActivated, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
@@ -106,6 +123,7 @@ import { formatTime } from '../utils/format'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
+import CategoryNav from '../components/CategoryNav.vue'
 
 defineOptions({ name: 'NotesList' })
 
@@ -120,13 +138,21 @@ const isDarkEffective = computed(() => theme.isDarkEffective)
 
 const notes = ref([])
 const categories = ref([])
-const activeTab = ref(0)
+// null = 全部分类
+const activeCategoryId = ref(null)
+const showDrawer = ref(false)
 const refreshing = ref(false)
 const loading = ref(false)
 const listLoading = ref(false)
 const listFinished = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
+
+// 导航栏标题：当前选中分类名，全部时显示「笔记」
+const currentCategoryName = computed(() => {
+  if (activeCategoryId.value == null) return '笔记'
+  return categories.value.find((c) => c.id === activeCategoryId.value)?.name ?? '笔记'
+})
 
 // 笔记卡片样式：背景色 + 文字色
 function cardStyle(n) {
@@ -190,7 +216,8 @@ function sortNotesInPlace() {
 
 async function loadCategories() {
   try {
-    categories.value = await http.get('/categories')
+    // 常用分类（笔记数多）排前面，便于快速定位
+    categories.value = (await http.get('/categories')).sort((a, b) => b.noteCount - a.noteCount)
   } catch {
     // 忽略
   }
@@ -214,11 +241,19 @@ async function loadNotes() {
 }
 
 async function fetchPage() {
-  const categoryId = activeTab.value > 0 ? categories.value[activeTab.value - 1]?.id : undefined
+  const categoryId = activeCategoryId.value ?? undefined
   const res = await http.get('/notes', { params: { categoryId, page: currentPage.value, pageSize } })
   notes.value.push(...res.items)
   if (!res.hasMore) listFinished.value = true
 }
+
+// 侧栏 / 抽屉选择分类：v-model 更新后触发加载
+watch(activeCategoryId, () => {
+  showDrawer.value = false // 移动端选中后自动收起抽屉
+  loadNotes()
+  // 同步到 URL，刷新 / 分享时保持所选分类
+  router.replace({ query: activeCategoryId.value ? { categoryId: activeCategoryId.value } : {} })
+})
 
 async function onLoadMore() {
   try {
@@ -230,10 +265,6 @@ async function onLoadMore() {
   } finally {
     listLoading.value = false
   }
-}
-
-function onTabChange() {
-  loadNotes()
 }
 
 function onRefresh() {
@@ -271,11 +302,12 @@ onMounted(async () => {
   }
   await loadCategories()
   const qid = Number(route.query.categoryId)
-  if (qid) {
-    const idx = categories.value.findIndex((c) => c.id === qid)
-    if (idx >= 0) activeTab.value = idx + 1
+  if (qid && categories.value.some((c) => c.id === qid)) {
+    // 设置后由 watch 统一触发加载，避免重复请求
+    activeCategoryId.value = qid
+  } else {
+    await loadNotes()
   }
-  await loadNotes()
   initialized = true
 })
 
@@ -295,6 +327,13 @@ onActivated(() => {
 }
 .empty {
   padding-top: 40px;
+}
+/* 响应式显隐：侧栏仅在桌面端显示，菜单按钮仅在移动端显示 */
+.mobile-only {
+  display: inline-flex;
+}
+.desktop-only {
+  display: none;
 }
 .note-card {
   padding: 14px 16px;
@@ -408,12 +447,37 @@ onActivated(() => {
   margin-bottom: 0;
 }
 
-/* 桌面端：多列网格 + 居中阅读宽度 */
+/* 桌面端：多列网格 + 居中阅读宽度 + 侧边栏双栏布局 */
 @media (min-width: 1024px) {
+  .mobile-only {
+    display: none;
+  }
+  .desktop-only {
+    display: block;
+  }
   .page {
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 0 auto;
     padding-bottom: 32px;
+  }
+  .layout {
+    display: flex;
+    gap: 16px;
+    padding: 0 16px;
+    align-items: flex-start;
+  }
+  /* 侧边栏：常驻 + 吸顶 + 分类多时内部滚动 */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 66px; /* van-nav-bar 高度下方吸附 */
+    max-height: calc(100vh - 82px);
+    overflow-y: auto;
+  }
+  .content {
+    flex: 1;
+    min-width: 0; /* 防止 grid 子项撑破布局 */
   }
   .notes-grid {
     display: grid;
