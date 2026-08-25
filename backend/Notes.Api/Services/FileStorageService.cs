@@ -9,6 +9,9 @@ public interface IFileStorageService
     Task<(Stream Stream, string ContentType, string FileName)> GetAsync(string filePath);
 
     void Delete(string filePath);
+
+    /// <summary>返回 Uploads 根目录的绝对路径（用于管理后台孤立文件扫描）</summary>
+    string GetUploadsRoot();
 }
 
 public class FileStorageService : IFileStorageService
@@ -74,6 +77,9 @@ public class FileStorageService : IFileStorageService
             File.Delete(filePath);
         }
     }
+
+    public string GetUploadsRoot()
+        => Path.Combine(_env.ContentRootPath, "Uploads");
 
     private static string GetContentType(string fileName)
     {
