@@ -65,6 +65,7 @@ echo -e "\e[32m==== 5. 创建运行用户和目录 ====\e[0m"
 id -u nginx >/dev/null 2>&1 || useradd -r -s /sbin/nologin nginx
 mkdir -p /opt/notes/backend
 mkdir -p /usr/share/nginx/notes
+mkdir -p /usr/share/nginx/notes-admin
 mkdir -p /var/log/notes-api
 chown -R nginx:nginx /opt/notes /var/log/notes-api
 

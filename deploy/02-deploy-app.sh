@@ -26,6 +26,13 @@ else
   while [ -z "${NOTES_DB_PW:-}" ]; do read -r -s -p "密码不能为空，重新输入: " NOTES_DB_PW; done
   echo
 
+  # 管理员账号（可留空跳过种子，之后可用后台「重置密码」创建/改密）
+  read -r -p "请输入管理员邮箱 [默认 admin@notes.local, 直接回车使用]: " NOTES_ADMIN_EMAIL_IN
+  if [ -z "$NOTES_ADMIN_EMAIL_IN" ]; then NOTES_ADMIN_EMAIL="admin@notes.local"; else NOTES_ADMIN_EMAIL="$NOTES_ADMIN_EMAIL_IN"; fi
+  read -r -s -p "请输入管理员密码 [至少 6 位，留空则不创建管理员]: " NOTES_ADMIN_PW_IN
+  echo
+  NOTES_ADMIN_PASSWORD="${NOTES_ADMIN_PW_IN:-}"
+
   # 生成随机 64 字节 JWT Key
   JWT_KEY="$(head -c 64 /dev/urandom | base64 -w0)"
 
@@ -35,7 +42,14 @@ else
   }
   sed -i "s|__DB_PASSWORD__|${NOTES_DB_PW}|g"       "$APPSETTINGS"
   sed -i "s|__JWT_SECRET_KEY__|${JWT_KEY}|g"        "$APPSETTINGS"
+  sed -i "s|__ADMIN_EMAIL__|${NOTES_ADMIN_EMAIL}|g" "$APPSETTINGS"
+  sed -i "s|__ADMIN_PASSWORD__|${NOTES_ADMIN_PASSWORD}|g" "$APPSETTINGS"
   echo "JWT Key 已随机生成并写入配置。如需备份请查看: $APPSETTINGS"
+  if [ -n "$NOTES_ADMIN_PASSWORD" ]; then
+    echo "管理员账号已写入配置（$NOTES_ADMIN_EMAIL），服务启动时会自动创建/授权。"
+  else
+    echo "未设置管理员密码，跳过管理员种子（如需创建，请重跑部署或直接编辑 $APPSETTINGS）。"
+  fi
 fi
 
 echo -e "\e[32m==== 2. 停止旧服务 → 复制新文件 → 赋权 ====\e[0m"
@@ -54,6 +68,17 @@ if [ -d /opt/notes/_deploy_tmp/dist ]; then
   chmod -R u=rwX,g=rX,o=rX /usr/share/nginx/notes
 else
   echo -e "\e[33m未检测到 /opt/notes/_deploy_tmp/dist，跳过前端更新。\e[0m"
+fi
+
+# 管理后台 dist
+if [ -d /opt/notes/_deploy_tmp/dist-admin ]; then
+  mkdir -p /usr/share/nginx/notes-admin
+  rm -rf /usr/share/nginx/notes-admin/*
+  cp -a /opt/notes/_deploy_tmp/dist-admin/. /usr/share/nginx/notes-admin/
+  chown -R nginx:nginx /usr/share/nginx/notes-admin
+  chmod -R u=rwX,g=rX,o=rX /usr/share/nginx/notes-admin
+else
+  echo -e "\e[33m未检测到 /opt/notes/_deploy_tmp/dist-admin，跳过管理后台更新。\e[0m"
 fi
 
 echo -e "\e[32m==== 3. 复制 systemd 与 Nginx 配置 ====\e[0m"

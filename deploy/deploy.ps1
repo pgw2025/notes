@@ -25,6 +25,8 @@ $BackendProj    = Join-Path $RepoRoot "backend\Notes.Api\Notes.Api.csproj"
 $BackendPublish = Join-Path $RepoRoot "publish\backend"
 $FrontendDir    = Join-Path $RepoRoot "frontend"
 $FrontendDist   = Join-Path $FrontendDir "dist"
+$AdminFrontendDir  = Join-Path $RepoRoot "frontend-admin"
+$AdminFrontendDist = Join-Path $AdminFrontendDir "dist"
 $DeployDir      = Join-Path $RepoRoot "deploy"
 $RemoteTmp      = "/opt/notes/_deploy_tmp"
 $RemoteBackend  = "/opt/notes/backend"
@@ -57,6 +59,18 @@ try {
   Pop-Location
 }
 
+Write-Host "==> 3.1 构建管理后台前端 (frontend-admin) <== 需要本机安装 Node >=18" -ForegroundColor Cyan
+Push-Location $AdminFrontendDir
+try {
+  if (!(Test-Path "node_modules")) {
+    npm ci
+  }
+  npm run build
+  if ($LASTEXITCODE -ne 0) { throw "npm run build (frontend-admin) 失败" }
+} finally {
+  Pop-Location
+}
+
 Write-Host "==> 4. 上传到服务器 ${SshUser}@${ServerIP}:${SshPort}" -ForegroundColor Cyan
 Write-Host "   4.1 准备 _deploy_tmp 目录（部署脚本依赖它）"
 ssh -p $SshPort ${SshUser}@${ServerIP} "mkdir -p ${RemoteTmp} ${RemoteBackend} && rm -rf ${RemoteTmp}/*"
@@ -69,6 +83,10 @@ if ($LASTEXITCODE -ne 0) { throw "后端 scp 上传失败" }
 Write-Host "   4.3 上传前端 dist"
 scp -P $SshPort -r "${FrontendDist}" "${SshUser}@${ServerIP}:${RemoteTmp}/"
 if ($LASTEXITCODE -ne 0) { throw "前端 dist scp 上传失败" }
+
+Write-Host "   4.3b 上传管理后台前端 dist（目标目录名 dist-admin）"
+scp -P $SshPort -r "${AdminFrontendDist}" "${SshUser}@${ServerIP}:${RemoteTmp}/dist-admin"
+if ($LASTEXITCODE -ne 0) { throw "管理后台 dist scp 上传失败" }
 
 Write-Host "   4.4 上传 deploy/ 下的模板与脚本"
 scp -P $SshPort `
