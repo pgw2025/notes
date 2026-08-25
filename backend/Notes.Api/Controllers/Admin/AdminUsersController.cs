@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Notes.Api.Data;
 using Notes.Api.DTOs.Admin;
 using Notes.Api.Models;
+using Notes.Api.Services;
 
 namespace Notes.Api.Controllers.Admin;
 
@@ -16,11 +18,19 @@ public class AdminUsersController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IFileStorageService _files;
 
-    public AdminUsersController(AppDbContext db, UserManager<ApplicationUser> userManager)
+    public AdminUsersController(
+        AppDbContext db,
+        UserManager<ApplicationUser> userManager,
+        RoleManager<IdentityRole> roleManager,
+        IFileStorageService files)
     {
         _db = db;
         _userManager = userManager;
+        _roleManager = roleManager;
+        _files = files;
     }
 
     private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -45,6 +55,12 @@ public class AdminUsersController : ControllerBase
 
         var total = await query.CountAsync();
 
+        // 批量计算管理员 Id 集合，供列表标记 IsAdmin（避免逐条查角色）
+        var adminRole = await _roleManager.FindByNameAsync("Admin");
+        var adminUserIds = adminRole != null
+            ? await _db.UserRoles.Where(ur => ur.RoleId == adminRole.Id).Select(ur => ur.UserId).ToListAsync()
+            : new List<string>();
+
         var users = await query
             .OrderByDescending(u => u.CreatedAt)
             .Skip((page - 1) * pageSize)
@@ -63,6 +79,7 @@ public class AdminUsersController : ControllerBase
             x.User.AvatarUrl,
             x.User.CreatedAt,
             IsLockedOut(x.User),
+            adminUserIds.Contains(x.User.Id),
             x.NoteCount)).ToList();
 
         return Ok(new AdminUserListResponseDto(items, total));
@@ -110,6 +127,59 @@ public class AdminUsersController : ControllerBase
 
     private static bool IsLockedOut(ApplicationUser user)
         => user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// 删除用户：先清理关联的物理文件（附件 + 头像）与无级联的 NoteVersion，
+    /// 再 UserManager.DeleteAsync 级联删除业务表（Note/Category/Tag/NoteTag/Attachment）与 Identity 表。
+    /// 硬删除，不可恢复。
+    /// </summary>
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        if (id == CurrentUserId)
+            return BadRequest(new { message = "不能删除自己的账号" });
+
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null) return NotFound();
+
+        if (await _userManager.IsInRoleAsync(user, "Admin"))
+            return BadRequest(new { message = "不能删除管理员账号" });
+
+        // 1. 载入该用户所有笔记及附件，用于清理物理文件与定位 NoteVersion
+        var notes = await _db.Notes
+            .Where(n => n.UserId == id)
+            .Include(n => n.Attachments)
+            .ToListAsync();
+        var noteIds = notes.Select(n => n.Id).ToList();
+
+        // 2. 清理附件物理文件（单文件失败不影响主流程）
+        foreach (var att in notes.SelectMany(n => n.Attachments))
+        {
+            try { _files.Delete(att.FilePath); } catch { /* 忽略单个文件删除失败 */ }
+        }
+
+        // 3. 清理头像物理文件
+        if (!string.IsNullOrEmpty(user.AvatarUrl))
+        {
+            var avatarName = user.AvatarUrl.StartsWith("/api/auth/avatar/")
+                ? user.AvatarUrl.Substring("/api/auth/avatar/".Length)
+                : Path.GetFileName(user.AvatarUrl);
+            var avatarPath = Path.Combine(_files.GetUploadsRoot(), "Avatars", avatarName);
+            try { _files.Delete(avatarPath); } catch { /* 忽略 */ }
+        }
+
+        // 4. 显式删除无级联配置的 NoteVersion，避免后续 DeleteAsync 的 FK 约束冲突
+        var versions = await _db.NoteVersions.Where(v => noteIds.Contains(v.NoteId)).ToListAsync();
+        _db.NoteVersions.RemoveRange(versions);
+        await _db.SaveChangesAsync();
+
+        // 5. 删除用户（业务表与 Identity 表由 EF / Identity 级联删除）
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
+
+        return NoContent();
+    }
 }
 
 public record SetStatusDto(bool Locked);

@@ -19,6 +19,7 @@ public record AdminUserDto(
     string? AvatarUrl,
     DateTime CreatedAt,
     bool LockedOut,
+    bool IsAdmin,
     int NoteCount);
 
 /// <summary>用户分页响应</summary>
