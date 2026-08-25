@@ -75,10 +75,15 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // 管理后台专用策略：要求调用方具备 Admin 角色
+    options.AddPolicy("Admin", policy => policy.RequireRole("Admin"));
+});
 
 // ===== 业务服务 =====
-builder.Services.AddSingleton<TokenService>();
+// TokenService 依赖 UserManager（Scoped），故必须注册为 Scoped 而非 Singleton
+builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
 // ===== CORS (允许前端开发服务器访问) =====
@@ -163,6 +168,62 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         Console.WriteLine("⚠ 数据库迁移失败，请确认 MySQL 已启动且连接字符串正确：" + ex.Message);
+    }
+}
+
+// ===== 初始管理员种子 =====
+// 确保 Admin 角色存在，并按配置创建/授权初始管理员账号。
+// 配置项：Admin:Email、Admin:Password（生产环境建议用环境变量注入）
+using (var scope = app.Services.CreateScope())
+{
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    try
+    {
+        // 1. 确保 Admin 角色存在
+        if (!await roleManager.RoleExistsAsync("Admin"))
+        {
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+        }
+
+        // 2. 从配置读取初始管理员账号（可缺省：未配置则跳过）
+        var adminEmail = builder.Configuration["Admin:Email"];
+        var adminPassword = builder.Configuration["Admin:Password"];
+        if (!string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminPassword))
+        {
+            var admin = await userManager.FindByEmailAsync(adminEmail);
+            if (admin == null)
+            {
+                admin = new ApplicationUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    DisplayName = "管理员",
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                var createResult = await userManager.CreateAsync(admin, adminPassword);
+                if (createResult.Succeeded)
+                {
+                    Console.WriteLine("✓ 初始管理员账号已创建");
+                }
+                else
+                {
+                    Console.WriteLine("⚠ 初始管理员账号创建失败：" + string.Join("; ", createResult.Errors.Select(e => e.Description)));
+                }
+            }
+
+            // 3. 确保管理员账号拥有 Admin 角色（无论新建还是已存在）
+            if (admin != null && !await userManager.IsInRoleAsync(admin, "Admin"))
+            {
+                await userManager.AddToRoleAsync(admin, "Admin");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("⚠ 初始管理员种子失败，请检查 Admin:Email / Admin:Password 配置：" + ex.Message);
     }
 }
 

@@ -70,3 +70,9 @@ $RECYCLE.BIN/
 # ===== 其他 =====
 *.tsbuildinfo
 .bak
+
+# WorkBuddy 本地项目数据（非源码，勿提交）
+.workbuddy/
+
+# 前端构建备份（非源码）
+frontend-admin/dist_bak/

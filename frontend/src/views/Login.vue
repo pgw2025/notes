@@ -38,19 +38,30 @@
     <div class="auth-footer">
       还没有账号？<router-link to="/register">立即注册</router-link>
     </div>
+
+    <div class="api-link">
+      后端服务：
+      <a :href="swaggerUrl" target="_blank" rel="noopener" title="点击打开后端 Swagger，检查服务是否在线">
+        {{ apiBaseUrl }}
+      </a>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { API_BASE_URL } from '../config/api'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const apiBaseUrl = API_BASE_URL
+const swaggerUrl = `${API_BASE_URL}/swagger`
 
 const form = reactive({ email: '', password: '' })
 
@@ -101,6 +112,20 @@ async function onSubmit() {
   font-size: 14px;
   color: var(--text-tertiary);
 }
+.api-link {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.api-link a {
+  color: var(--van-primary-color, #1989fa);
+  text-decoration: none;
+  word-break: break-all;
+}
+.api-link a:active {
+  opacity: 0.7;
+}
 
 /* 桌面端：卡片式表单 */
 @media (min-width: 1024px) {
@@ -132,6 +157,9 @@ async function onSubmit() {
     margin: 20px 0 0;
   }
   .auth-footer {
+    max-width: 420px;
+  }
+  .api-link {
     max-width: 420px;
   }
 }

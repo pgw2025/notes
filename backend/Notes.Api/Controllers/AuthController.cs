@@ -61,7 +61,7 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
-        var token = _tokenService.CreateToken(user);
+        var token = await _tokenService.CreateToken(user);
         return Ok(new AuthResponseDto(token, user.Email!, user.DisplayName));
     }
 
@@ -72,11 +72,15 @@ public class AuthController : ControllerBase
         if (user == null)
             return Unauthorized(new { message = "邮箱或密码错误" });
 
+        // 账号被禁用（管理员设置 LockoutEnd）时拒绝登录
+        if (await _userManager.IsLockedOutAsync(user))
+            return Unauthorized(new { message = "账号已被禁用，请联系管理员" });
+
         var valid = await _userManager.CheckPasswordAsync(user, dto.Password);
         if (!valid)
             return Unauthorized(new { message = "邮箱或密码错误" });
 
-        var token = _tokenService.CreateToken(user);
+        var token = await _tokenService.CreateToken(user);
         return Ok(new AuthResponseDto(token, user.Email!, user.DisplayName));
     }
 
