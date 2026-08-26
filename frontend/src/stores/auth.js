@@ -1,6 +1,16 @@
 import { defineStore } from 'pinia'
 import http from '../api/http'
 
+// 清空离线缓存中的用户数据（与 vite.config.js 中 runtimeCaching 的 cacheName 保持一致）。
+// 仅清数据型缓存，保留 app shell 预缓存以加速下次冷启动；防止不同账号在同一设备上串数据。
+async function clearUserDataCaches() {
+  if (typeof caches === 'undefined') return
+  const names = ['api-notes', 'api-attachments', 'api-avatars']
+  try {
+    await Promise.all(names.map((n) => caches.delete(n)))
+  } catch { /* ignore */ }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || '',
@@ -80,6 +90,8 @@ export const useAuthStore = defineStore('auth', {
       this.token = ''
       this.user = null
       localStorage.removeItem('token')
+      // 登出即清除该账号的离线缓存，避免下一位登录用户看到旧数据
+      clearUserDataCaches()
     }
   }
 })

@@ -44,6 +44,13 @@
 
     <!-- 主内容区 -->
     <main class="app-main">
+      <!-- 全局离线提示横幅 -->
+      <van-notice-bar
+        v-if="offline.isOffline"
+        left-icon="info-o"
+        wrapable
+        class="offline-bar"
+      >当前离线，正在展示最近缓存的内容</van-notice-bar>
       <router-view v-slot="{ Component }">
         <keep-alive include="NotesList">
           <component :is="Component" />
@@ -70,14 +77,17 @@ import { showToast } from 'vant'
 import { useResponsive } from './composables/useResponsive'
 import { useThemeStore } from './stores/theme'
 import { useTagStore } from './stores/tag'
+import { useOfflineStore } from './stores/offline'
 import SidebarTags from './components/SidebarTags.vue'
 
 const route = useRoute()
 const theme = useThemeStore()
 const tagStore = useTagStore()
+const offline = useOfflineStore()
 const { isDesktop } = useResponsive()
 
 onMounted(() => {
+  offline.init()
   const token = localStorage.getItem('token')
   if (token) {
     tagStore.fetchTags()
@@ -127,7 +137,7 @@ function toggleTheme() {
 
 <style scoped>
 .app-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* 桌面端：侧边栏 + 主内容 */
@@ -141,7 +151,7 @@ function toggleTheme() {
   flex-shrink: 0;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -311,11 +321,17 @@ body.dark .sidebar-item.router-link-active {
   transform: translateY(0);
 }
 
+.offline-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
 .app-main {
   flex: 1;
   min-width: 0;
   background: var(--app-bg);
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* 移动端：保持居中的手机视图（平板/大屏手机） */
@@ -323,7 +339,7 @@ body.dark .sidebar-item.router-link-active {
   .app-main {
     max-width: 720px;
     margin: 0 auto;
-    min-height: 100vh;
+    min-height: 100dvh;
     background: var(--app-bg);
     box-shadow: var(--shadow-sm);
     position: relative;

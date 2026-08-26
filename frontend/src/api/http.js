@@ -9,6 +9,21 @@ const http = axios.create({
 
 http.interceptors.request.use(
   (config) => {
+    const method = (config.method || 'get').toUpperCase()
+
+    // 离线时拦截一切写操作：不发起请求，直接提示。
+    // 读操作(GET)交给 Service Worker 的离线缓存处理（见 vite.config.js runtimeCaching）。
+    if (
+      ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) &&
+      typeof navigator !== 'undefined' &&
+      navigator.onLine === false
+    ) {
+      showToast({ message: '当前处于离线状态，无法保存，请恢复网络后重试', type: 'fail' })
+      const err = new Error('离线状态，写操作被拦截')
+      err._offlineBlocked = true
+      return Promise.reject(err)
+    }
+
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
