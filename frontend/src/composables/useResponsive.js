@@ -5,13 +5,20 @@ const DESKTOP_BREAKPOINT = 1024
 
 export function useResponsive() {
   const isDesktop = ref(typeof window !== 'undefined' && window.innerWidth >= DESKTOP_BREAKPOINT)
+  let rafId = null
 
   const update = () => {
-    isDesktop.value = window.innerWidth >= DESKTOP_BREAKPOINT
+    if (rafId) cancelAnimationFrame(rafId)
+    rafId = requestAnimationFrame(() => {
+      isDesktop.value = window.innerWidth >= DESKTOP_BREAKPOINT
+    })
   }
 
   onMounted(() => window.addEventListener('resize', update))
-  onUnmounted(() => window.removeEventListener('resize', update))
+  onUnmounted(() => {
+    if (rafId) cancelAnimationFrame(rafId)
+    window.removeEventListener('resize', update)
+  })
 
   return { isDesktop }
 }

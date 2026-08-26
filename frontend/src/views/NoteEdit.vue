@@ -227,66 +227,21 @@
       </div>
     </transition>
 
-    <!-- 分类选择：含内联新建输入 -->
-    <van-popup v-model:show="showCategoryPicker" position="bottom" round>
-      <div class="cat-picker">
-        <van-nav-bar title="选择分类">
-          <template #right>
-            <van-button size="mini" type="primary" plain @click="showCategoryPicker = false">完成</van-button>
-          </template>
-        </van-nav-bar>
-        <div class="inline-create">
-          <van-field v-model="newCategoryName" placeholder="输入新分类，回车立即创建" clearable maxlength="20" :border="false"
-            :loading="creatingCategory" @keydown.enter.prevent="createCategoryInline">
-            <template #left-icon>
-              <span class="ic-plus">＋</span>
-            </template>
-            <template #button>
-              <van-button size="small" type="primary" :disabled="!newCategoryName.trim()" :loading="creatingCategory"
-                @click="createCategoryInline">创建</van-button>
-            </template>
-          </van-field>
-        </div>
-        <van-picker :columns="categoryColumns" :default-index="categoryDefaultIndex" @confirm="onCategoryConfirm"
-          @cancel="showCategoryPicker = false" />
-      </div>
-    </van-popup>
+    <!-- 分类选择弹窗（卡片网格 + 即时检索 + 一键创建） -->
+    <CategorySelectModal
+      v-model:show="showCategoryPicker"
+      v-model="form.categoryId"
+      :categories="categories"
+      @category-created="onCategoryCreated"
+    />
 
-    <!-- 标签选择：含内联新建输入 -->
-    <van-popup v-model:show="showTagPicker" position="bottom" round style="height: 60%">
-      <div class="tag-picker">
-        <van-nav-bar title="选择标签">
-          <template #right>
-            <van-button size="mini" type="primary" @click="showTagPicker = false">完成</van-button>
-          </template>
-        </van-nav-bar>
-        <div class="inline-create">
-          <van-field v-model="newTagName" placeholder="输入新标签，回车立即创建并勾选" clearable maxlength="20" :border="false"
-            :loading="creatingTag" @keydown.enter.prevent="createTagInline">
-            <template #left-icon>
-              <span class="ic-plus">＋</span>
-            </template>
-            <template #button>
-              <van-button size="small" type="primary" :disabled="!newTagName.trim()" :loading="creatingTag"
-                @click="createTagInline">创建</van-button>
-            </template>
-          </van-field>
-        </div>
-        <div class="tag-list">
-          <van-checkbox-group v-model="form.tagIds">
-            <van-cell v-for="t in tags" :key="t.id" :title="t.name"
-              :label="t.noteCount != null ? `包含 ${t.noteCount} 篇笔记` : '新建标签'" clickable @click="toggleTag(t.id)">
-              <template #right-icon>
-                <van-checkbox shape="square" :name="t.id" />
-              </template>
-            </van-cell>
-          </van-checkbox-group>
-          <div v-if="tags.length === 0" class="empty-tags">
-            <van-empty description="还没有标签，在上方输入框直接创建" image-size="80" />
-          </div>
-        </div>
-      </div>
-    </van-popup>
+    <!-- 标签选择弹窗（标签云多选 + 选区概览 + 快速创建） -->
+    <TagSelectModal
+      v-model:show="showTagPicker"
+      v-model="form.tagIds"
+      :tags="tags"
+      @tag-created="onTagCreated"
+    />
 
     <!-- 颜色选择 -->
     <ColorPicker v-model:show="showColorPicker" v-model="form.backgroundColor" />
@@ -300,9 +255,12 @@ import { showToast } from 'vant'
 import http from '../api/http'
 import MarkdownBody from '../components/MarkdownBody.vue'
 import ColorPicker from '../components/ColorPicker.vue'
+import CategorySelectModal from '../components/CategorySelectModal.vue'
+import TagSelectModal from '../components/TagSelectModal.vue'
 import { useResponsive } from '../composables/useResponsive'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
+import { useTagStore } from '../stores/tag'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 
 const route = useRoute()
@@ -310,6 +268,7 @@ const router = useRouter()
 const { isDesktop } = useResponsive()
 const auth = useAuthStore()
 const theme = useThemeStore()
+const tagStore = useTagStore()
 
 const noteId = computed(() => route.params.id)
 const isEdit = computed(() => !!noteId.value)
@@ -1102,6 +1061,19 @@ async function loadData() {
     pendingChanges = false
     updateDocumentTitle()
   }
+}
+
+function onCategoryCreated(cat) {
+  if (cat && !categories.value.some((c) => c.id === cat.id)) {
+    categories.value.push(cat)
+  }
+}
+
+function onTagCreated(tag) {
+  if (tag && !tags.value.some((t) => t.id === tag.id)) {
+    tags.value.push(tag)
+  }
+  tagStore.addTag(tag)
 }
 
 function onCategoryConfirm({ selectedValues }) {

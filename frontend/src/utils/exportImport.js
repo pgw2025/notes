@@ -39,7 +39,8 @@ function timestampPrefix() {
  * 列表接口返回的是 ContentPreview，需要用详情接口获取完整 Content
  */
 async function fetchFullNotes() {
-  const list = await http.get('/notes')
+  const res = await http.get('/notes')
+  const list = Array.isArray(res) ? res : (res?.items || [])
   const fullNotes = await Promise.all(
     list.map((n) => http.get(`/notes/${n.id}`))
   )
@@ -324,7 +325,8 @@ async function resolveTagIds(tagNames) {
  * 获取已有笔记的标题+内容指纹集合，用于去重
  */
 async function getExistingNoteFingerprints() {
-  const list = await http.get('/notes')
+  const res = await http.get('/notes')
+  const list = Array.isArray(res) ? res : (res?.items || [])
   const set = new Set()
   for (const n of list) {
     set.add(`${n.title}||${n.contentPreview}`)

@@ -274,21 +274,13 @@ async function reload() {
     const data = await http.get('/notes/timeline', { params })
     timeline.value = data
 
-    // 默认展开：今年 + 当前月
+    // 默认展开：如果有数据，默认展开今年和各月份（或所有非空月份），方便用户一目了然看到笔记
     nextTick(() => {
       if (!data?.years) return
       for (const y of data.years) {
-        if (y.isCurrentYear) {
-          yearExpanded[y.year] = true
-          for (const m of y.months) {
-            if (m.isCurrentMonth) monthExpanded[keyOfMonth(y.year, m.month)] = true
-          }
-        } else {
-          if (yearExpanded[y.year] === undefined) yearExpanded[y.year] = false
-          for (const m of y.months) {
-            const k = keyOfMonth(y.year, m.month)
-            if (monthExpanded[k] === undefined) monthExpanded[k] = false
-          }
+        yearExpanded[y.year] = true
+        for (const m of y.months) {
+          monthExpanded[keyOfMonth(y.year, m.month)] = true
         }
       }
     })
@@ -384,76 +376,89 @@ watch(() => filters.keyword, () => {
   padding: 12px 12px 24px;
 }
 .year-group {
-  margin-bottom: 10px;
+  margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: var(--shadow-xs);
 }
 .year-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 14px 16px;
   background: var(--surface-2);
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s ease;
+}
+.year-header:hover {
+  background: var(--surface-3);
 }
 .year-title {
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-primary);
   flex: 1;
 }
 .year-count { margin-left: auto; }
 .year-current { margin-left: 4px; }
 
-.year-body { padding: 0 4px 4px; }
+.year-body { padding: 4px 6px 8px; }
 
-.month-group { border-top: 1px solid var(--surface-2); }
+.month-group { border-top: 1px solid var(--divider); }
 .month-group:first-child { border-top: none; }
 
 .month-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 12px 14px;
   cursor: pointer;
   background: var(--surface);
   user-select: none;
+  border-radius: 8px;
+  margin: 4px 0;
+  transition: background 0.15s ease;
+}
+.month-header:hover {
+  background: var(--surface-2);
 }
 .month-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 14.5px;
+  color: var(--text-primary);
   flex: 1;
 }
 .month-count { font-size: 12px; color: var(--text-tertiary); }
 .month-current { margin-left: 4px; }
 
-.month-body { padding: 0 10px 8px; }
+.month-body { padding: 4px 12px 12px; }
 
 .day-group {
   position: relative;
-  padding-left: 20px;
-  padding-bottom: 8px;
+  padding-left: 24px;
+  padding-bottom: 12px;
 }
 .day-dot {
   position: absolute;
-  left: 6px;
-  top: 6px;
+  left: 7px;
+  top: 8px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(25, 137, 250, 0.22);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
 }
 :global(body.dark) .day-dot {
-  box-shadow: 0 0 0 3px rgba(51, 154, 248, 0.25);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25);
 }
 .day-group::before {
   content: '';
   position: absolute;
-  left: 9px;
-  top: 14px;
+  left: 10px;
+  top: 18px;
   bottom: -4px;
   width: 2px;
   background: var(--border);
@@ -465,12 +470,12 @@ watch(() => filters.keyword, () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 0 6px;
+  padding: 2px 0 8px;
 }
 .day-title {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 600;
 }
 .day-count {
   font-size: 12px;
@@ -480,29 +485,32 @@ watch(() => filters.keyword, () => {
 .notes-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 .note-card {
-  background: var(--surface-2);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 12px;
-  transition: box-shadow 0.2s, transform 0.2s;
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
 }
 .note-card:hover {
   box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
 }
 .note-time {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--color-primary);
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 4px;
 }
 .note-title {
   font-weight: 600;
   font-size: 15px;
+  color: var(--text-primary);
   margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -511,11 +519,12 @@ watch(() => filters.keyword, () => {
 .note-preview {
   font-size: 13px;
   color: var(--text-secondary);
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .note-meta {
   display: flex;

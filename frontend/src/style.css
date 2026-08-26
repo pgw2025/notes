@@ -28,19 +28,24 @@
   --color-danger:        #ee0a24;
 
   /* Markdown 内容专用 */
-  --md-quote-border:     #dcdfe6;
-  --md-quote-bg:         rgba(0, 0, 0, 0.03);
-  --md-code-bg:          rgba(0, 0, 0, 0.04);
-  --md-code-color:       #c7254e;
-  --md-pre-bg:           #2d2d2d;
-  --md-pre-color:        #f5f5f5;
-  --md-table-border:     #dcdfe6;
-  --md-table-head-bg:    #f7f8fa;
-  --md-hr:               #ebedf0;
+  --md-quote-border:     #3b82f6;
+  --md-quote-bg:         rgba(59, 130, 246, 0.06);
+  --md-code-bg:          rgba(0, 0, 0, 0.05);
+  --md-code-color:       #e11d48;
+  --md-pre-bg:           #1e293b;
+  --md-pre-color:        #f8fafc;
+  --md-table-border:     #e2e8f0;
+  --md-table-head-bg:    #f8fafc;
+  --md-hr:               #e2e8f0;
 
   /* 交互 */
+  --shadow-xs:           0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-sm:           0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-md:           0 6px 20px rgba(0, 0, 0, 0.08);
+  --shadow-md:           0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg:           0 16px 36px rgba(0, 0, 0, 0.12);
+  --radius-sm:           6px;
+  --radius-md:           10px;
+  --radius-lg:           14px;
 }
 
 /* ==========================================================
@@ -50,39 +55,41 @@
 body.dark {
   color-scheme: dark;
 
-  --app-bg:              #121214;   /* 0dp: 纯暗色应用底板，Material Night Mode */
-  --surface:             #1b1d22;   /* 1dp: 卡片/导航/输入框主表面 */
-  --surface-2:           #242832;   /* 2dp: hover / chip / segmented */
-  --surface-3:           #2e3340;   /* 3dp: 强调分割 */
+  --app-bg:              #0f172a;   /* Slate 900 */
+  --surface:             #1e293b;   /* Slate 800 */
+  --surface-2:           #334155;   /* Slate 700 */
+  --surface-3:           #475569;   /* Slate 600 */
 
-  --text-primary:        rgba(255, 255, 255, 0.92);
-  --text-secondary:      rgba(255, 255, 255, 0.70);
-  --text-tertiary:       rgba(255, 255, 255, 0.50);
-  --text-disabled:       rgba(255, 255, 255, 0.28);
-  --text-inverse:        #121214;
+  --text-primary:        #f8fafc;
+  --text-secondary:      #cbd5e1;
+  --text-tertiary:       #94a3b8;
+  --text-disabled:       #64748b;
+  --text-inverse:        #0f172a;
 
-  --border:              rgba(255, 255, 255, 0.10);
-  --border-strong:       rgba(255, 255, 255, 0.16);
-  --divider:             rgba(255, 255, 255, 0.06);
+  --border:              rgba(255, 255, 255, 0.08);
+  --border-strong:       rgba(255, 255, 255, 0.14);
+  --divider:             rgba(255, 255, 255, 0.05);
 
-  /* 主色：保持 HSL 不变，只把亮度提到 60% 以便更显眼 */
-  --color-primary:       #339af8;
-  --color-success:       #20ce78;
-  --color-warning:       #ffa780;
-  --color-danger:        #ff3b47;
+  /* 主色 */
+  --color-primary:       #38bdf8;
+  --color-success:       #34d399;
+  --color-warning:       #fbbf24;
+  --color-danger:        #f87171;
 
-  --md-quote-border:     rgba(255, 255, 255, 0.22);
-  --md-quote-bg:         rgba(255, 255, 255, 0.04);
-  --md-code-bg:          rgba(255, 255, 255, 0.08);
-  --md-code-color:       #ff8a95;
-  --md-pre-bg:           #0f1217;
-  --md-pre-color:        rgba(255, 255, 255, 0.92);
-  --md-table-border:     rgba(255, 255, 255, 0.14);
-  --md-table-head-bg:    rgba(255, 255, 255, 0.06);
-  --md-hr:               rgba(255, 255, 255, 0.12);
+  --md-quote-border:     #38bdf8;
+  --md-quote-bg:         rgba(56, 189, 248, 0.08);
+  --md-code-bg:          rgba(255, 255, 255, 0.1);
+  --md-code-color:       #fb7185;
+  --md-pre-bg:           #090d16;
+  --md-pre-color:        #f1f5f9;
+  --md-table-border:     rgba(255, 255, 255, 0.12);
+  --md-table-head-bg:    rgba(255, 255, 255, 0.04);
+  --md-hr:               rgba(255, 255, 255, 0.1);
 
+  --shadow-xs:           0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm:           0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-md:           0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg:           0 16px 36px rgba(0, 0, 0, 0.6);
 }
 
 /* ==========================================================
