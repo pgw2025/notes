@@ -73,13 +73,13 @@
           <div class="meta-row meta-row--compact" :style="{ borderTopColor: metaBorderColor, borderColor: metaBorderColor }">
             <div class="meta-scroll-chips">
               <!-- 分类胶囊 -->
-              <span v-if="selectedCategory" class="chip chip--cat" :style="chipStyle.cat" @click="showCategoryPicker = true"
+              <span v-if="selectedCategory" ref="categoryBtnRef" class="chip chip--cat" :style="chipStyle.cat" @click="showCategoryPicker = true"
                 :title="'切换分类：' + selectedCategory.name">
                 <span class="chip-icon">📁</span>
                 <span class="chip-text">{{ selectedCategory.name }}</span>
                 <span class="chip-x" @click.stop="form.categoryId = null" title="移除分类">×</span>
               </span>
-              <span v-else class="chip chip--add chip--add-cat" @click="showCategoryPicker = true" :style="chipStyle.add" title="选择分类">
+              <span v-else ref="categoryBtnEmptyRef" class="chip chip--add chip--add-cat" @click="showCategoryPicker = true" :style="chipStyle.add" title="选择分类">
                 <span class="chip-icon">📁</span>
                 <span class="chip-text">选分类</span>
               </span>
@@ -94,7 +94,7 @@
                 <span class="chip-text">{{ t.name }}</span>
                 <span class="chip-x" @click.stop="removeTag(t.id)">×</span>
               </span>
-              <span class="chip chip--add" @click="showTagPicker = true" :style="chipStyle.add" title="添加标签">
+              <span ref="tagBtnRef" class="chip chip--add" @click="showTagPicker = true" :style="chipStyle.add" title="添加标签">
                 <span class="chip-icon">＋</span>
                 <span class="chip-text">标签</span>
               </span>
@@ -356,6 +356,7 @@
       v-model:show="showCategoryPicker"
       v-model="form.categoryId"
       :categories="categories"
+      :anchor-el="categoryAnchorEl"
       @category-created="onCategoryCreated"
     />
 
@@ -364,6 +365,7 @@
       v-model:show="showTagPicker"
       v-model="form.tagIds"
       :tags="tags"
+      :anchor-el="tagAnchorEl"
       @tag-created="onTagCreated"
     />
 
@@ -417,6 +419,14 @@ const mode = ref('edit')
 const saving = ref(false)
 const showCategoryPicker = ref(false)
 const showTagPicker = ref(false)
+
+// 桌面端 Contextual Popover 锚点引用
+const categoryBtnRef = ref(null)
+const categoryBtnEmptyRef = ref(null)
+const tagBtnRef = ref(null)
+const categoryAnchorEl = computed(() => categoryBtnRef.value || categoryBtnEmptyRef.value)
+const tagAnchorEl = computed(() => tagBtnRef.value)
+
 // 方案 A：移动端顶部灵动胶囊展开态（折叠时只留 40px 胶囊，点击展开完整属性面板，打字或点击收起时折叠）
 const mobileHeaderExpanded = ref(false)
 function toggleMobileHeader() {

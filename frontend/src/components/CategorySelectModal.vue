@@ -1,24 +1,24 @@
 <template>
-  <van-popup
+  <ResponsivePopover
     :show="show"
-    position="bottom"
-    round
-    class="cat-modal-popup"
-    :style="{ maxHeight: '80vh' }"
+    :anchor-el="anchorEl"
+    :width="390"
+    :max-height="480"
+    modal-class="cat-modal-popup"
     @update:show="$emit('update:show', $event)"
   >
-    <div class="cat-modal">
+    <div class="cat-modal" :class="{ 'is-popover': isDesktop }">
       <!-- 头部 -->
       <div class="modal-header">
         <div class="header-main">
           <div class="header-icon">📁</div>
           <div>
             <h3 class="modal-title">选择笔记分类</h3>
-            <p class="modal-sub">将笔记归入对应分类，便于整理与检索</p>
+            <p v-if="!isDesktop" class="modal-sub">将笔记归入对应分类，便于整理与检索</p>
           </div>
         </div>
-        <button class="close-btn" @click="$emit('update:show', false)">
-          <van-icon name="cross" size="18" />
+        <button class="close-btn" @click="$emit('update:show', false)" title="关闭 (Esc)">
+          <van-icon name="cross" size="16" />
         </button>
       </div>
 
@@ -27,9 +27,10 @@
         <div class="search-input-wrap">
           <van-icon name="search" size="16" class="search-icon" />
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
-            placeholder="搜索分类或输入新分类名称..."
+            placeholder="搜索分类或输入新名称..."
             maxlength="30"
             class="filter-input"
             @keydown.enter.prevent="handleQuickCreate"
@@ -112,13 +113,15 @@
         </van-button>
       </div>
     </div>
-  </van-popup>
+  </ResponsivePopover>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { showToast } from 'vant'
 import http from '../api/http'
+import { useResponsive } from '../composables/useResponsive'
+import ResponsivePopover from './ResponsivePopover.vue'
 
 const props = defineProps({
   show: {
@@ -132,13 +135,19 @@ const props = defineProps({
   categories: {
     type: Array,
     default: () => []
+  },
+  anchorEl: {
+    type: [Object, null],
+    default: null
   }
 })
 
 const emit = defineEmits(['update:show', 'update:modelValue', 'category-created'])
 
+const { isDesktop } = useResponsive()
 const searchQuery = ref('')
 const creating = ref(false)
+const searchInputRef = ref(null)
 
 const trimmedQuery = computed(() => searchQuery.value.trim())
 
@@ -164,8 +173,24 @@ const currentCategoryName = computed(() => {
   return found ? found.name : '无分类'
 })
 
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal && isDesktop.value) {
+      nextTick(() => {
+        searchInputRef.value?.focus?.()
+      })
+    } else if (!newVal) {
+      searchQuery.value = ''
+    }
+  }
+)
+
 function selectCategory(id) {
   emit('update:modelValue', id)
+  if (isDesktop.value) {
+    emit('update:show', false)
+  }
 }
 
 async function handleQuickCreate() {
@@ -178,6 +203,7 @@ async function handleQuickCreate() {
     emit('update:modelValue', exist.id)
     searchQuery.value = ''
     showToast(`已选择「${exist.name}」`)
+    if (isDesktop.value) emit('update:show', false)
     return
   }
 
@@ -185,7 +211,7 @@ async function handleQuickCreate() {
   try {
     const res = await http.post('/categories', { name })
     const record = res && res.id ? res : { id: res?.id, name, noteCount: 0 }
-    
+
     // 如果返回数据无 id，重新拉取列表以兜底
     if (!record.id) {
       const fresh = await http.get('/categories')
@@ -202,6 +228,7 @@ async function handleQuickCreate() {
     }
     searchQuery.value = ''
     showToast(`已创建并应用「${name}」`)
+    if (isDesktop.value) emit('update:show', false)
   } catch (err) {
     showToast('创建分类失败：' + (err.message || ''))
   } finally {
@@ -444,12 +471,56 @@ async function handleQuickCreate() {
 }
 
 @media (min-width: 1024px) {
-  :deep(.cat-modal-popup) {
-    max-width: 540px;
-    margin: 0 auto;
-    left: 50%;
-    transform: translateX(-50%);
-    border-radius: 16px 16px 0 0;
+  .cat-modal.is-popover {
+    border-radius: 12px;
+    max-height: 480px;
+    box-shadow: none;
+    border: none;
+  }
+
+  .cat-modal.is-popover .modal-header {
+    padding: 12px 14px 10px;
+  }
+
+  .cat-modal.is-popover .modal-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .cat-modal.is-popover .header-icon {
+    font-size: 18px;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+  }
+
+  .cat-modal.is-popover .search-create-bar {
+    padding: 0 14px 10px;
+  }
+
+  .cat-modal.is-popover .filter-input {
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .cat-modal.is-popover .categories-content {
+    max-height: 260px;
+    padding: 0 14px 10px;
+    overflow-y: auto;
+  }
+
+  .cat-modal.is-popover .category-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .cat-modal.is-popover .cat-option-card {
+    padding: 9px 10px;
+    border-radius: 8px;
+  }
+
+  .cat-modal.is-popover .modal-footer {
+    padding: 10px 14px;
   }
 }
 </style>

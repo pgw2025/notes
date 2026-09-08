@@ -1,24 +1,24 @@
 <template>
-  <van-popup
+  <ResponsivePopover
     :show="show"
-    position="bottom"
-    round
-    class="tag-modal-popup"
-    :style="{ maxHeight: '80vh' }"
+    :anchor-el="anchorEl"
+    :width="410"
+    :max-height="480"
+    modal-class="tag-modal-popup"
     @update:show="$emit('update:show', $event)"
   >
-    <div class="tag-modal">
+    <div class="tag-modal" :class="{ 'is-popover': isDesktop }">
       <!-- 头部 -->
       <div class="modal-header">
         <div class="header-main">
           <div class="header-icon">🏷️</div>
           <div>
             <h3 class="modal-title">选择笔记标签</h3>
-            <p class="modal-sub">多选标签，帮助你从不同维度交叉检索笔记</p>
+            <p v-if="!isDesktop" class="modal-sub">多选标签，帮助你从不同维度交叉检索笔记</p>
           </div>
         </div>
-        <button class="close-btn" @click="$emit('update:show', false)">
-          <van-icon name="cross" size="18" />
+        <button class="close-btn" @click="$emit('update:show', false)" title="关闭 (Esc)">
+          <van-icon name="cross" size="16" />
         </button>
       </div>
 
@@ -27,6 +27,7 @@
         <div class="search-input-wrap">
           <van-icon name="search" size="16" class="search-icon" />
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
             placeholder="搜索标签或输入新标签名称..."
@@ -119,13 +120,15 @@
         </van-button>
       </div>
     </div>
-  </van-popup>
+  </ResponsivePopover>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { showToast } from 'vant'
 import http from '../api/http'
+import { useResponsive } from '../composables/useResponsive'
+import ResponsivePopover from './ResponsivePopover.vue'
 
 const props = defineProps({
   show: {
@@ -139,13 +142,19 @@ const props = defineProps({
   tags: {
     type: Array,
     default: () => []
+  },
+  anchorEl: {
+    type: [Object, null],
+    default: null
   }
 })
 
 const emit = defineEmits(['update:show', 'update:modelValue', 'tag-created'])
 
+const { isDesktop } = useResponsive()
 const searchQuery = ref('')
 const creating = ref(false)
+const searchInputRef = ref(null)
 
 const trimmedQuery = computed(() => searchQuery.value.trim())
 
@@ -164,6 +173,19 @@ const exactMatchExists = computed(() => {
 const canQuickCreate = computed(() => {
   return trimmedQuery.value.length > 0 && !exactMatchExists.value
 })
+
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal && isDesktop.value) {
+      nextTick(() => {
+        searchInputRef.value?.focus?.()
+      })
+    } else if (!newVal) {
+      searchQuery.value = ''
+    }
+  }
+)
 
 const selectedTagList = computed(() => {
   return props.tags.filter((t) => props.modelValue.includes(t.id))
@@ -561,12 +583,63 @@ async function handleQuickCreate() {
 }
 
 @media (min-width: 1024px) {
-  :deep(.tag-modal-popup) {
-    max-width: 540px;
-    margin: 0 auto;
-    left: 50%;
-    transform: translateX(-50%);
-    border-radius: 16px 16px 0 0;
+  .tag-modal.is-popover {
+    border-radius: 12px;
+    max-height: 480px;
+    box-shadow: none;
+    border: none;
+  }
+
+  .tag-modal.is-popover .modal-header {
+    padding: 12px 14px 10px;
+  }
+
+  .tag-modal.is-popover .modal-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .tag-modal.is-popover .header-icon {
+    font-size: 18px;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+  }
+
+  .tag-modal.is-popover .modal-sub {
+    display: none;
+  }
+
+  .tag-modal.is-popover .search-create-bar {
+    padding: 0 14px 10px;
+  }
+
+  .tag-modal.is-popover .filter-input {
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .tag-modal.is-popover .selected-summary-bar {
+    padding: 6px 14px 8px;
+  }
+
+  .tag-modal.is-popover .tags-content {
+    max-height: 220px;
+    padding: 0 14px 10px;
+    overflow-y: auto;
+  }
+
+  .tag-modal.is-popover .tag-cloud {
+    gap: 6px;
+  }
+
+  .tag-modal.is-popover .tag-pill-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .tag-modal.is-popover .modal-footer {
+    padding: 10px 14px;
   }
 }
 </style>
