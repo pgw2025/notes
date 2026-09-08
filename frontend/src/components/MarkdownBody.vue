@@ -9,7 +9,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
 import { Marked } from 'marked'
 import markedKatex from 'marked-katex-extension'
 import DOMPurify from 'dompurify'
@@ -265,11 +265,182 @@ function onContainerClick(e) {
 }
 
 watch(html, () => {
+  clearSearch()
   if (!props.collapsible) return
   nextTick(() => {
     rebuildHeadingHierarchy()
   })
 }, { immediate: true })
+
+// ================= 正文搜索与联动 =================
+let searchMatches = []
+let currentMatchIndex = -1
+
+function clearSearch() {
+  const container = containerRef.value
+  if (!container) return
+  const marks = container.querySelectorAll('mark.search-highlight')
+  for (const mark of Array.from(marks)) {
+    const parent = mark.parentNode
+    if (parent) {
+      while (mark.firstChild) {
+        parent.insertBefore(mark.firstChild, mark)
+      }
+      parent.removeChild(mark)
+    }
+  }
+  container.normalize()
+  searchMatches = []
+  currentMatchIndex = -1
+}
+
+function highlightSearch(query) {
+  clearSearch()
+  if (!query || !query.trim()) {
+    return { total: 0, current: -1 }
+  }
+  const container = containerRef.value
+  if (!container) {
+    return { total: 0, current: -1 }
+  }
+
+  const q = query.trim().toLowerCase()
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement
+        if (!parent) return NodeFilter.FILTER_REJECT
+        const tag = parent.tagName
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'BUTTON') {
+          return NodeFilter.FILTER_REJECT
+        }
+        if (
+          parent.closest('.heading-collapse-toggle') ||
+          parent.closest('.heading-fold-banner')
+        ) {
+          return NodeFilter.FILTER_REJECT
+        }
+        if (!node.nodeValue || !node.nodeValue.toLowerCase().includes(q)) {
+          return NodeFilter.FILTER_SKIP
+        }
+        return NodeFilter.FILTER_ACCEPT
+      }
+    }
+  )
+
+  const textNodes = []
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode)
+  }
+
+  const marks = []
+  for (const node of textNodes) {
+    let text = node.nodeValue
+    let lower = text.toLowerCase()
+    let index = lower.indexOf(q)
+    if (index === -1) continue
+
+    let currentNode = node
+    while (index !== -1) {
+      try {
+        const matchNode = currentNode.splitText(index)
+        const remainingNode = matchNode.splitText(q.length)
+
+        const mark = document.createElement('mark')
+        mark.className = 'search-highlight'
+        mark.textContent = matchNode.nodeValue
+        matchNode.parentNode.replaceChild(mark, matchNode)
+        marks.push(mark)
+
+        currentNode = remainingNode
+        text = currentNode.nodeValue
+        lower = text.toLowerCase()
+        index = lower.indexOf(q)
+      } catch {
+        break
+      }
+    }
+  }
+
+  searchMatches = marks
+  if (marks.length > 0) {
+    currentMatchIndex = 0
+    focusMatch(0)
+    return { total: marks.length, current: 0 }
+  } else {
+    currentMatchIndex = -1
+    return { total: 0, current: -1 }
+  }
+}
+
+function focusMatch(index) {
+  if (!searchMatches || searchMatches.length === 0) return
+  if (index < 0 || index >= searchMatches.length) return
+
+  currentMatchIndex = index
+  const container = containerRef.value
+  if (!container) return
+
+  for (let i = 0; i < searchMatches.length; i++) {
+    searchMatches[i].classList.toggle('is-current', i === index)
+  }
+
+  const targetMark = searchMatches[index]
+  if (!targetMark) return
+
+  // 1. 如果匹配项处于折叠章节中，自动逆向展开其所属的章节
+  let cur = targetMark
+  while (cur && cur.parentElement && cur.parentElement !== container) {
+    cur = cur.parentElement
+  }
+
+  if (cur) {
+    let stateChanged = false
+    if (/^H[1-6]$/.test(cur.tagName) && collapsedHeadingIds.value.has(cur.id)) {
+      collapsedHeadingIds.value.delete(cur.id)
+      stateChanged = true
+    }
+    const parents = headingParentsMap.get(cur) || []
+    for (const pid of parents) {
+      if (collapsedHeadingIds.value.has(pid)) {
+        collapsedHeadingIds.value.delete(pid)
+        stateChanged = true
+      }
+    }
+    if (stateChanged) {
+      applyCollapseState()
+    }
+  }
+
+  // 2. 居中平滑滚动聚焦
+  nextTick(() => {
+    targetMark.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
+
+function nextSearchMatch() {
+  if (!searchMatches || searchMatches.length === 0) {
+    return { total: 0, current: -1 }
+  }
+  const nextIdx = (currentMatchIndex + 1) % searchMatches.length
+  focusMatch(nextIdx)
+  return { total: searchMatches.length, current: nextIdx }
+}
+
+function prevSearchMatch() {
+  if (!searchMatches || searchMatches.length === 0) {
+    return { total: 0, current: -1 }
+  }
+  const prevIdx = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length
+  focusMatch(prevIdx)
+  return { total: searchMatches.length, current: prevIdx }
+}
+
+onUnmounted(() => {
+  clearSearch()
+})
 
 defineExpose({
   foldAll,
@@ -277,7 +448,11 @@ defineExpose({
   toggleHeading,
   expandHeading,
   getHeadings: () => headingList.value,
-  getCollapsedIds: () => Array.from(collapsedHeadingIds.value)
+  getCollapsedIds: () => Array.from(collapsedHeadingIds.value),
+  highlightSearch,
+  nextSearchMatch,
+  prevSearchMatch,
+  clearSearch
 })
 </script>
 
@@ -372,5 +547,37 @@ defineExpose({
   font-weight: 500;
   font-size: 12px;
   margin-left: auto;
+}
+
+/* 搜索高亮与聚焦动画 */
+.markdown-body mark.search-highlight {
+  background-color: #ffe57f;
+  color: #1f2328;
+  border-radius: 2px;
+  padding: 1px 2px;
+  margin: 0 -1px;
+  box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.35);
+  transition: all 0.15s ease;
+}
+
+:global(body.dark) .markdown-body mark.search-highlight {
+  background-color: #c99710;
+  color: #111418;
+  box-shadow: 0 0 0 1px rgba(255, 235, 59, 0.4);
+}
+
+.markdown-body mark.search-highlight.is-current {
+  background-color: #ff976a !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #ff7043, 0 2px 8px rgba(255, 112, 67, 0.45) !important;
+  animation: search-highlight-bounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes search-highlight-bounce {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.16); }
+  100% { transform: scale(1); }
 }
 </style>

@@ -5,6 +5,13 @@
         <!-- 桌面端单行布局：按钮在标题右侧 -->
         <div class="nav-right nav-actions--desktop">
           <van-icon
+            name="search"
+            size="20"
+            :style="{ color: showSearchBar ? '#1989fa' : navIconColor }"
+            title="正文搜索 (Ctrl+F)"
+            @click="toggleSearch"
+          />
+          <van-icon
             v-if="headings.length"
             name="bars"
             size="20"
@@ -28,6 +35,13 @@
     <!-- 移动端第二行：按钮独占一行，与标题完全不重叠 -->
     <div class="nav-actions nav-actions--mobile">
       <van-icon
+        name="search"
+        size="20"
+        :style="{ color: showSearchBar ? '#1989fa' : navIconColor }"
+        title="正文搜索"
+        @click="toggleSearch"
+      />
+      <van-icon
         v-if="headings.length"
         name="bars"
         size="20"
@@ -45,6 +59,59 @@
       <van-icon name="down" size="20" :style="{ color: navIconColor }" @click="showExportSheet = true" />
       <van-icon name="edit" size="20" :style="{ color: navIconColor }" @click="note && $router.push(`/notes/${note.id}/edit`)" />
     </div>
+
+    <!-- 浮动正文搜索栏（支持快捷键 Ctrl/Cmd+F，与章节折叠联动） -->
+    <transition name="search-slide">
+      <div v-if="showSearchBar" class="floating-search-bar" :style="{ color: textColor }">
+        <div class="search-bar-inner">
+          <van-icon name="search" class="search-bar-icon" />
+          <input
+            ref="searchInputRef"
+            v-model="searchKeyword"
+            type="text"
+            class="search-bar-input"
+            placeholder="在正文中查找 (Enter 下一个)..."
+            @input="onSearchInput"
+            @keydown.enter.exact.prevent="onNextSearch"
+            @keydown.shift.enter.prevent="onPrevSearch"
+            @keydown.esc.prevent="closeSearch"
+          />
+          <div v-if="searchKeyword.trim()" class="search-bar-badge" :class="{ 'is-zero': searchTotal === 0 }">
+            <span v-if="searchTotal > 0">{{ currentSearchIndex + 1 }}/{{ searchTotal }}</span>
+            <span v-else>无匹配</span>
+          </div>
+          <div class="search-bar-controls">
+            <button
+              type="button"
+              class="search-bar-btn"
+              :disabled="searchTotal === 0"
+              title="上一个 (Shift+Enter)"
+              @click="onPrevSearch"
+            >
+              <van-icon name="arrow-up" size="13" />
+            </button>
+            <button
+              type="button"
+              class="search-bar-btn"
+              :disabled="searchTotal === 0"
+              title="下一个 (Enter)"
+              @click="onNextSearch"
+            >
+              <van-icon name="arrow-down" size="13" />
+            </button>
+            <div class="search-bar-sep"></div>
+            <button
+              type="button"
+              class="search-bar-btn search-bar-close"
+              title="关闭 (Esc)"
+              @click="closeSearch"
+            >
+              <van-icon name="cross" size="14" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <div v-if="note" class="detail-container">
       <!-- 核心正文阅读区 -->
@@ -409,7 +476,86 @@ onUnmounted(() => {
     headingObserver.disconnect()
     headingObserver = null
   }
+  window.removeEventListener('keydown', handleGlobalKeyDown)
+  clearTimeout(searchDebounceTimer)
 })
+
+// ================= 正文搜索与联动 =================
+const showSearchBar = ref(false)
+const searchKeyword = ref('')
+const searchTotal = ref(0)
+const currentSearchIndex = ref(-1)
+const searchInputRef = ref(null)
+let searchDebounceTimer = null
+
+function toggleSearch() {
+  if (showSearchBar.value) {
+    closeSearch()
+  } else {
+    openSearch()
+  }
+}
+
+function openSearch() {
+  showSearchBar.value = true
+  nextTick(() => {
+    searchInputRef.value?.focus()
+    if (searchKeyword.value) {
+      searchInputRef.value?.select()
+      executeSearch()
+    }
+  })
+}
+
+function closeSearch() {
+  showSearchBar.value = false
+  searchKeyword.value = ''
+  searchTotal.value = 0
+  currentSearchIndex.value = -1
+  markdownBodyRef.value?.clearSearch()
+}
+
+function onSearchInput() {
+  clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    executeSearch()
+  }, 120)
+}
+
+function executeSearch() {
+  if (!markdownBodyRef.value) return
+  const res = markdownBodyRef.value.highlightSearch(searchKeyword.value)
+  searchTotal.value = res.total
+  currentSearchIndex.value = res.current
+}
+
+function onNextSearch() {
+  if (!markdownBodyRef.value || searchTotal.value === 0) return
+  const res = markdownBodyRef.value.nextSearchMatch()
+  searchTotal.value = res.total
+  currentSearchIndex.value = res.current
+}
+
+function onPrevSearch() {
+  if (!markdownBodyRef.value || searchTotal.value === 0) return
+  const res = markdownBodyRef.value.prevSearchMatch()
+  searchTotal.value = res.total
+  currentSearchIndex.value = res.current
+}
+
+function handleGlobalKeyDown(e) {
+  // Ctrl+F / Cmd+F 快捷唤起正文搜索
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault()
+    openSearch()
+    return
+  }
+  // Esc 快捷关闭搜索
+  if (showSearchBar.value && e.key === 'Escape') {
+    e.preventDefault()
+    closeSearch()
+  }
+}
 
 // 导出
 const showExportSheet = ref(false)
@@ -567,7 +713,10 @@ async function restoreById(vid) {
   }
 }
 
-onMounted(loadNote)
+onMounted(() => {
+  loadNote()
+  window.addEventListener('keydown', handleGlobalKeyDown)
+})
 </script>
 
 <style scoped>
@@ -1165,5 +1314,140 @@ onMounted(loadNote)
     border-radius: 12px;
     box-shadow: 0 8px 30px rgba(0,0,0,0.12);
   }
+}
+
+/* ========== 浮动正文搜索栏 ========== */
+.floating-search-bar {
+  position: fixed;
+  top: 54px;
+  right: 24px;
+  z-index: 95;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.12);
+  padding: 6px 10px;
+  box-sizing: border-box;
+}
+
+:global(body.dark) .floating-search-bar {
+  background: rgba(36, 40, 48, 0.95);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 1023px) {
+  .floating-search-bar {
+    top: 94px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}
+
+.search-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-bar-icon {
+  font-size: 16px;
+  color: #1989fa;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.search-bar-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: inherit;
+  outline: none;
+  padding: 4px 0;
+}
+
+.search-bar-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.65;
+  font-size: 12.5px;
+}
+
+.search-bar-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(25, 137, 250, 0.12);
+  color: #1989fa;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.search-bar-badge.is-zero {
+  background: rgba(238, 10, 36, 0.12);
+  color: #ee0a24;
+}
+
+.search-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.search-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.search-bar-btn:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-primary);
+}
+
+.search-bar-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.search-bar-close:hover {
+  background: rgba(238, 10, 36, 0.12) !important;
+  color: #ee0a24 !important;
+}
+
+.search-bar-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+/* 展开与收起平滑过渡 */
+.search-slide-enter-active,
+.search-slide-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.search-slide-enter-from,
+.search-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
 }
 </style>
