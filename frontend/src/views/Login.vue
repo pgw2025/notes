@@ -8,7 +8,9 @@
 
     <div class="auth-card">
       <div class="auth-header">
-        <div class="brand-badge">📝</div>
+        <div class="brand-badge">
+          <img src="/pwa-192x192.png" alt="云笺笔记" class="brand-badge-img" />
+        </div>
         <h1>随心笔记</h1>
         <p>随时随地记录灵感与思考</p>
       </div>
@@ -150,11 +152,16 @@ async function onSubmit() {
 }
 
 .brand-badge {
-  font-size: 44px;
-  line-height: 1;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   display: inline-block;
-  transform: rotate(-5deg);
+}
+
+.brand-badge-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: block;
+  box-shadow: var(--shadow-md);
 }
 
 .auth-header h1 {

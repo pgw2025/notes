@@ -4,7 +4,7 @@
     <aside v-if="showSidebar" class="app-sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo-box">
-          <span class="brand-logo-icon">📝</span>
+          <img src="/pwa-192x192.png" alt="云笺笔记" class="brand-logo-icon" />
         </div>
         <div class="brand-text-wrap">
           <span class="brand-title">云笺笔记</span>
@@ -172,15 +172,15 @@ function toggleTheme() {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(15, 169, 140, 0.25);
 }
 
 .brand-logo-icon {
-  font-size: 20px;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .brand-text-wrap {
