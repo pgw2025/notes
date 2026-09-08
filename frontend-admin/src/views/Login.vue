@@ -44,10 +44,10 @@
 
       <div class="login-form-card">
         <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent>
-          <el-form-item label="管理员邮箱" prop="email">
+          <el-form-item label="管理员邮箱 / 用户名" prop="account">
             <el-input
-              v-model="form.email"
-              placeholder="请输入管理员邮箱"
+              v-model="form.account"
+              placeholder="请输入管理员邮箱或用户名"
               size="large"
               :prefix-icon="User"
               autocomplete="username"
@@ -128,17 +128,17 @@ function handleThemeCommand(mode) {
 }
 
 const form = reactive({
-  email: '',
+  account: '',
   password: ''
 })
 
 const rules = {
-  email: [{ required: true, message: '请输入管理员邮箱', trigger: 'blur' }],
+  account: [{ required: true, message: '请输入管理员邮箱或用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
 function fillAdminAccount() {
-  form.email = 'admin@notes.com'
+  form.account = 'admin@notes.com'
   form.password = 'admin123'
   ElMessage.info('已填入预设管理员账号')
 }
@@ -147,7 +147,7 @@ async function handleLogin() {
   await formRef.value.validate()
   loading.value = true
   try {
-    await auth.login(form.email, form.password)
+    await auth.login(form.account, form.password)
     ElMessage.success('登录成功，欢迎进入管理控制台')
     router.replace({ name: 'dashboard' })
   } catch (e) {

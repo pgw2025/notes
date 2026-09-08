@@ -29,7 +29,7 @@
 
           <div class="profile-info">
             <div class="profile-name" v-if="!editing">
-              <span>{{ auth.user?.displayName || auth.user?.email || '未登录' }}</span>
+              <span>{{ auth.user?.displayName || auth.user?.userName || '未登录' }}</span>
               <button class="name-edit-btn" @click="startEdit" title="修改昵称">
                 <van-icon name="edit" size="14" />
               </button>

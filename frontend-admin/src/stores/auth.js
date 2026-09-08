@@ -23,8 +23,8 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('admin_displayName', displayName || '')
     },
 
-    async login(email, password) {
-      const res = await http.post('/auth/login', { email, password })
+    async login(account, password) {
+      const res = await http.post('/auth/login', { account, password })
       // 校验是否为管理员，非管理员不入库并抛错
       if (!isAdminToken(res.token)) {
         throw new Error('该账号不是管理员，无权访问后台')

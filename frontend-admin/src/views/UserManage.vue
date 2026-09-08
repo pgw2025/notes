@@ -32,7 +32,7 @@
                 </el-avatar>
                 <div class="user-names">
                   <div class="user-nick">{{ row.displayName || '-' }}</div>
-                  <div class="user-mail">{{ row.email }}</div>
+                  <div class="user-mail">{{ row.email || '未设置' }}</div>
                 </div>
               </div>
             </template>
@@ -114,7 +114,7 @@
                     {{ user.isAdmin ? '管理员' : '普通用户' }}
                   </el-tag>
                 </div>
-                <div class="mobile-user-email">{{ user.email }}</div>
+                <div class="mobile-user-email">{{ user.email || '未设置' }}</div>
               </div>
             </div>
             <el-tag :type="user.lockedOut ? 'danger' : 'success'" size="small" effect="dark">

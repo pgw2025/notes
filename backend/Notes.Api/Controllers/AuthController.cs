@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -39,17 +40,30 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest(new { message = "邮箱和密码不能为空" });
+        if (string.IsNullOrWhiteSpace(dto.UserName) || string.IsNullOrWhiteSpace(dto.Password))
+            return BadRequest(new { message = "用户名和密码不能为空" });
 
-        var existing = await _userManager.FindByEmailAsync(dto.Email);
-        if (existing != null)
-            return Conflict(new { message = "该邮箱已被注册" });
+        // 用户名必填：校验格式与唯一性（主登录标识）
+        var userName = dto.UserName.Trim();
+        if (!IsValidUserName(userName))
+            return BadRequest(new { message = "用户名需为 3-30 位字母、数字、下划线或短横线" });
+        if (await _userManager.FindByNameAsync(userName) != null)
+            return Conflict(new { message = "该用户名已被使用" });
+
+        // 邮箱选填：填了则校验格式与唯一性
+        var email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim();
+        if (email != null)
+        {
+            if (!IsValidEmail(email))
+                return BadRequest(new { message = "邮箱格式不正确" });
+            if (await _userManager.FindByEmailAsync(email) != null)
+                return Conflict(new { message = "该邮箱已被注册" });
+        }
 
         var user = new ApplicationUser
         {
-            UserName = dto.Email,
-            Email = dto.Email,
+            UserName = userName,
+            Email = email,
             DisplayName = dto.DisplayName,
             EmailConfirmed = true,
             CreatedAt = DateTime.UtcNow,
@@ -62,15 +76,17 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
         var token = await _tokenService.CreateToken(user);
-        return Ok(new AuthResponseDto(token, user.Email!, user.DisplayName));
+        return Ok(new AuthResponseDto(token, user.Email, user.DisplayName));
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDto>> Login(LoginDto dto)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email);
+        // 支持用邮箱或用户名登录：先按用户名查，未命中再按邮箱查（均为不区分大小写）
+        var user = await _userManager.FindByNameAsync(dto.Account)
+            ?? await _userManager.FindByEmailAsync(dto.Account);
         if (user == null)
-            return Unauthorized(new { message = "邮箱或密码错误" });
+            return Unauthorized(new { message = "账号或密码错误" });
 
         // 账号被禁用（管理员设置 LockoutEnd）时拒绝登录
         if (await _userManager.IsLockedOutAsync(user))
@@ -78,7 +94,7 @@ public class AuthController : ControllerBase
 
         var valid = await _userManager.CheckPasswordAsync(user, dto.Password);
         if (!valid)
-            return Unauthorized(new { message = "邮箱或密码错误" });
+            return Unauthorized(new { message = "账号或密码错误" });
 
         var token = await _tokenService.CreateToken(user);
         return Ok(new AuthResponseDto(token, user.Email!, user.DisplayName));
@@ -102,12 +118,13 @@ public class AuthController : ControllerBase
 
         return Ok(new UserDto(
             user.Id,
-            user.Email!,
+            user.Email,
             user.DisplayName,
             user.AvatarUrl,
             user.DefaultNoteColor,
             colors,
-            user.CreatedAt));
+            user.CreatedAt,
+            user.UserName));
     }
 
     [Authorize]
@@ -165,12 +182,13 @@ public class AuthController : ControllerBase
         var colorsOut = ParseCustomColors(user.CustomColors) ?? new List<string>();
         return Ok(new UserDto(
             user.Id,
-            user.Email!,
+            user.Email,
             user.DisplayName,
             user.AvatarUrl,
             user.DefaultNoteColor,
             colorsOut,
-            user.CreatedAt));
+            user.CreatedAt,
+            user.UserName));
     }
 
     private static bool IsValidHexColor(string s)
@@ -179,6 +197,20 @@ public class AuthController : ControllerBase
         if (s[0] != '#') return false;
         return s.Length == 7 && s[1..].All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
     }
+
+    /// <summary>用户名：3-30 位字母、数字、下划线或短横线</summary>
+    private static bool IsValidUserName(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return false;
+        if (s.Length < 3 || s.Length > 30) return false;
+        return s.All(c => char.IsAsciiLetterOrDigit(c) || c == '_' || c == '-');
+    }
+
+    /// <summary>邮箱格式校验（与前端正则一致）</summary>
+    private static readonly Regex EmailPattern = new(@"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+
+    private static bool IsValidEmail(string s)
+        => !string.IsNullOrEmpty(s) && EmailPattern.IsMatch(s);
 
     /// <summary>解析用户色板 JSON 字符串。返回 null 表示未初始化。</summary>
     private static List<string>? ParseCustomColors(string? json)

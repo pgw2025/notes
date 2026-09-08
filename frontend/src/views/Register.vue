@@ -16,22 +16,33 @@
       <van-form @submit="onSubmit" class="register-form">
         <div class="fields-box">
           <van-field
-            v-model="form.displayName"
-            label="昵称"
-            placeholder="选填，你的昵称"
-            maxlength="20"
+            v-model="form.userName"
+            name="userName"
+            label="用户名"
+            placeholder="请输入用户名"
+            maxlength="30"
             clearable
+            :rules="[
+              { required: true, message: '请输入用户名' },
+              { pattern: userNamePattern, message: '用户名需为 3-30 位字母、数字、下划线或短横线' }
+            ]"
           />
           <van-field
             v-model="form.email"
             name="email"
             label="邮箱"
-            placeholder="请输入注册邮箱"
+            placeholder="选填"
             clearable
             :rules="[
-              { required: true, message: '请输入邮箱' },
-              { pattern: emailPattern, message: '邮箱格式不正确' }
+              { pattern: emailPattern, message: '邮箱格式不正确', validateEmpty: false }
             ]"
+          />
+          <van-field
+            v-model="form.displayName"
+            label="昵称"
+            placeholder="选填，你的昵称"
+            maxlength="20"
+            clearable
           />
           <van-field
             v-model="form.password"
@@ -85,8 +96,9 @@ const auth = useAuthStore()
 const theme = useThemeStore()
 const loading = ref(false)
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const userNamePattern = /^[a-zA-Z0-9_-]{3,30}$/
 
-const form = reactive({ displayName: '', email: '', password: '', confirm: '' })
+const form = reactive({ displayName: '', email: '', userName: '', password: '', confirm: '' })
 
 const themeIcon = computed(() => {
   if (theme.mode === 'dark') return 'moon-o'
@@ -105,7 +117,7 @@ const samePassword = (v) => v === form.password
 async function onSubmit() {
   loading.value = true
   try {
-    await auth.register(form.email, form.password, form.displayName || undefined)
+    await auth.register(form.userName, form.email || undefined, form.password, form.displayName || undefined)
     router.replace('/notes')
   } finally {
     loading.value = false

@@ -1,19 +1,20 @@
 namespace Notes.Api.DTOs;
 
-public record RegisterDto(string Email, string Password, string? DisplayName);
+public record RegisterDto(string UserName, string? Email, string Password, string? DisplayName);
 
-public record LoginDto(string Email, string Password);
+public record LoginDto(string Account, string Password);
 
-public record AuthResponseDto(string Token, string Email, string? DisplayName);
+public record AuthResponseDto(string Token, string? Email, string? DisplayName);
 
 public record UserDto(
     string Id,
-    string Email,
+    string? Email,
     string? DisplayName,
     string? AvatarUrl,
     string? DefaultNoteColor,
     List<string> CustomColors,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? UserName);
 
 public record UpdateProfileDto(
     string? DisplayName,

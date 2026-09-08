@@ -30,7 +30,8 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
         options.Password.RequireUppercase = false;
         options.Password.RequireLowercase = false;
         options.Password.RequiredLength = 6;
-        options.User.RequireUniqueEmail = true;
+        // 邮箱改为选填：用户名才是唯一主标识，邮箱唯一性由注册接口手动校验
+        options.User.RequireUniqueEmail = false;
     })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();

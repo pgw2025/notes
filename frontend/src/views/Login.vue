@@ -16,14 +16,13 @@
       <van-form @submit="onSubmit" class="login-form">
         <div class="fields-box">
           <van-field
-            v-model="form.email"
-            name="email"
-            label="邮箱"
-            placeholder="请输入注册邮箱"
+            v-model="form.account"
+            name="account"
+            label="邮箱 / 用户名"
+            placeholder="请输入邮箱或用户名"
             clearable
             :rules="[
-              { required: true, message: '请输入邮箱' },
-              { pattern: emailPattern, message: '邮箱格式不正确' }
+              { required: true, message: '请输入邮箱或用户名' }
             ]"
           />
           <van-field
@@ -71,9 +70,8 @@ const route = useRoute()
 const auth = useAuthStore()
 const theme = useThemeStore()
 const loading = ref(false)
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const form = reactive({ email: '', password: '' })
+const form = reactive({ account: '', password: '' })
 
 const themeIcon = computed(() => {
   if (theme.mode === 'dark') return 'moon-o'
@@ -89,7 +87,7 @@ function toggleTheme() {
 async function onSubmit() {
   loading.value = true
   try {
-    await auth.login(form.email, form.password)
+    await auth.login(form.account, form.password)
     router.replace(route.query.redirect || '/notes')
   } finally {
     loading.value = false
