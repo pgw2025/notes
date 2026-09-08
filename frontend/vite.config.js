@@ -22,7 +22,7 @@ export default defineConfig({
         short_name: '云笺',
         description: '云笺笔记 - 轻量级云笔记应用',
         lang: 'zh-CN',
-        theme_color: '#863bff',
+        theme_color: '#0FA98C',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
