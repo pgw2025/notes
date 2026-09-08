@@ -198,7 +198,7 @@ using (var scope = app.Services.CreateScope())
             {
                 admin = new ApplicationUser
                 {
-                    UserName = adminEmail,
+                    UserName = "admin",
                     Email = adminEmail,
                     DisplayName = "管理员",
                     EmailConfirmed = true,
