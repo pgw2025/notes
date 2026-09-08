@@ -1278,13 +1278,13 @@ onMounted(() => {
 /* 桌面端：居中阅读宽度 + 版本模态改为居中 Dialog 样式 */
 @media (min-width: 1024px) {
   .page {
-    max-width: 820px;
+    max-width: var(--page-width-compact, 860px);
     margin: 0 auto;
     padding-bottom: 48px;
     transition: max-width 0.2s ease;
   }
   .page.has-desktop-toc {
-    max-width: 1120px;
+    max-width: var(--page-width-wide, 1180px);
   }
   .detail-container {
     padding: 24px 32px;

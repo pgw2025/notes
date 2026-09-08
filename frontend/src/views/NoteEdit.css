@@ -1565,11 +1565,11 @@
 /* 桌面端：编辑/预览并排显示 */
 @media (min-width: 1024px) {
   .page {
-    max-width: 1200px;
+    max-width: var(--page-width-wide, 1180px);
     margin: 0 auto;
     min-height: calc(100vh - 40px);
-    border-left: 1px solid #ebedf0;
-    border-right: 1px solid #ebedf0;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
   }
 
   .editor {

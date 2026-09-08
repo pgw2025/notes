@@ -348,10 +348,10 @@ onActivated(load)
   padding-top: 4px;
 }
 
-/* 桌面端：居中阅读宽度 */
+/* 桌面端：紧凑居中宽度 */
 @media (min-width: 1024px) {
   .page {
-    max-width: 900px;
+    max-width: var(--page-width-compact, 860px);
     margin: 0 auto;
     padding-bottom: 32px;
   }

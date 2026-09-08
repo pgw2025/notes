@@ -535,17 +535,27 @@ watch(() => filters.keyword, () => {
 /* ========== 桌面端适配 ========== */
 @media (min-width: 1024px) {
   .page {
-    max-width: 1100px;
+    max-width: var(--page-width-wide, 1180px);
     margin: 0 auto;
     padding-bottom: 48px;
   }
-  /* 桌面端 NavBar 改为 static 在文档流中，sticky 筛选栏吸顶时要避让 NavBar 高度（约 46px） */
+  /* 桌面端 NavBar 归入文档流，避免全屏 fixed 跨出，与内容区容器完全同宽居中 */
+  :deep(.van-nav-bar--fixed) {
+    position: static !important;
+    width: auto !important;
+    left: auto !important;
+    right: auto !important;
+  }
+  :deep(.van-nav-bar__placeholder) {
+    display: none !important;
+  }
+  /* 桌面端吸顶筛选栏直接贴顶 */
   .filter-bar {
-    top: 46px !important;
+    top: 0 !important;
     z-index: 10;
     border-radius: 0 0 8px 8px;
-    margin: 0 -16px 8px;
-    padding: 12px 16px 12px;
+    margin: 0 0 12px;
+    padding: 12px 16px;
   }
   .notes-list {
     display: grid;

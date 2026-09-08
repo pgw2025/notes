@@ -53,10 +53,10 @@
 
           <p class="result-preview">{{ n.contentPreview || '暂无文字内容' }}</p>
 
-          <div class="card-footer" v-if="n.category || (n.tags && n.tags.length)">
-            <span v-if="n.category" class="cat-badge">📁 {{ n.category.name }}</span>
+          <div class="card-footer" v-if="n.categoryName || n.category || (n.tags && n.tags.length)">
+            <span v-if="n.categoryName || n.category" class="cat-badge">📁 {{ n.categoryName || n.category?.name }}</span>
             <div class="tag-badges" v-if="n.tags && n.tags.length">
-              <span v-for="t in n.tags" :key="t.id" class="tag-badge">#{{ t.name }}</span>
+              <span v-for="t in n.tags" :key="t.id || t" class="tag-badge">#{{ t.name || t }}</span>
             </div>
           </div>
         </div>
@@ -387,10 +387,10 @@ onMounted(() => {
   max-width: 280px;
 }
 
-/* 桌面端：居中阅读宽度 */
+/* 桌面端：紧凑居中宽度 */
 @media (min-width: 1024px) {
   .page {
-    max-width: 820px;
+    max-width: var(--page-width-compact, 860px);
     margin: 0 auto;
     padding-bottom: 32px;
   }

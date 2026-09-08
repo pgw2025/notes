@@ -747,7 +747,7 @@ onActivated(() => {
     display: block;
   }
   .page {
-    max-width: 1320px;
+    max-width: var(--page-width-wide, 1180px);
     margin: 0 auto;
     padding-bottom: 32px;
   }
