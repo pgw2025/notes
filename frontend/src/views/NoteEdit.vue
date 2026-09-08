@@ -1,9 +1,23 @@
 <template>
   <div class="page" :class="{ 'page--fullscreen': isFullscreen }">
-    <van-nav-bar :title="navTitle" left-arrow @click-left="onBack">
+    <van-nav-bar left-arrow @click-left="onBack">
+      <template #title>
+        <!-- 移动端：顶部灵动微胶囊（点击顺滑展开/收起完整元属性面板） -->
+        <div v-if="!isDesktop" class="mobile-nav-capsule" :class="{ 'is-expanded': mobileHeaderExpanded }"
+          @click="toggleMobileHeader" title="点击展开/收起笔记属性">
+          <span class="capsule-icon">{{ selectedCategory ? '📁' : '📝' }}</span>
+          <span class="capsule-title">{{ (form.title && form.title.trim()) || selectedCategoryName || '未命名笔记' }}</span>
+          <span class="capsule-status-dot" :class="`status-${saveStatus}`"
+            :title="saveStatus === 'saving' ? '保存中' : (saveStatus === 'saved' ? '已保存' : '')"></span>
+          <span class="capsule-arrow">{{ mobileHeaderExpanded ? '▴' : '▾' }}</span>
+        </div>
+        <!-- 桌面端：标准导航标题 -->
+        <span v-else class="desktop-nav-title">{{ navTitle }}</span>
+      </template>
+
       <template #right>
-        <!-- 桌面端单行布局：按钮在标题右侧 -->
-        <div class="nav-actions nav-actions--desktop">
+        <!-- 桌面端单行布局：所有动作在标题右侧 -->
+        <div v-if="isDesktop" class="nav-actions nav-actions--desktop">
           <van-icon :name="form.isPinned ? 'star' : 'star-o'" size="20" :color="form.isPinned ? '#ff976a' : undefined"
             @click="form.isPinned = !form.isPinned" />
           <!-- 编辑/预览 模式切换（单按钮双向切换，替代原双Tabs） -->
@@ -22,11 +36,21 @@
           <van-icon name="edit" size="20" class="color-icon" @click="showColorPicker = true" />
           <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
         </div>
+        <!-- 移动端顶栏右侧：仅保留模式切换与快速保存，极简高利用率 -->
+        <div v-else class="mobile-nav-right">
+          <span class="nav-icon nav-char-btn" @click="mode = mode === 'edit' ? 'preview' : 'edit'"
+            :title="mode === 'edit' ? '切换到预览' : '切换到编辑'">
+            <template v-if="mode === 'edit'">👁</template>
+            <template v-else>✎</template>
+          </span>
+          <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
+        </div>
       </template>
     </van-nav-bar>
 
-    <!-- 保存状态条：显示保存中/已保存/保存失败，移动端桌面端都显示 -->
-    <div class="save-status" :class="[`save-status--${saveStatus}`, { 'is-clickable': saveStatus === 'error' }]"
+    <!-- 保存状态条：桌面端常驻，移动端仅在错误或展开时轻微提示，平时收缩进胶囊微状态点 -->
+    <div v-if="isDesktop || saveStatus === 'error' || mobileHeaderExpanded" class="save-status"
+      :class="[`save-status--${saveStatus}`, { 'is-clickable': saveStatus === 'error' }]"
       @click="saveStatus === 'error' && onSave()">
       <span class="save-status__dot"></span>
       <span class="save-status__text">
@@ -37,59 +61,78 @@
       </span>
     </div>
 
-    <!-- 移动端第二行工具栏：按钮独占一行，和标题完全不重叠 -->
-    <div class="nav-actions nav-actions--mobile">
-      <van-icon :name="form.isPinned ? 'star' : 'star-o'" size="20" :color="form.isPinned ? '#ff976a' : undefined"
-        title="置顶" @click="form.isPinned = !form.isPinned" />
-      <!-- 编辑/预览 模式切换（替代原 van-tabs 双tab） -->
-      <span class="nav-icon nav-char-btn" @click="mode = mode === 'edit' ? 'preview' : 'edit'"
-        :title="mode === 'edit' ? '切换到预览' : '切换到编辑'">
-        <template v-if="mode === 'edit'">👁</template>
-        <template v-else>✎</template>
-      </span>
-      <span class="nav-icon nav-char-btn" title="大纲" @click="showOutline = !showOutline">☰</span>
-      <span class="nav-icon nav-char-btn" title="搜索替换" @click="openSearch">🔍</span>
-      <span class="nav-icon nav-char-btn" :title="isFullscreen ? '退出全屏' : '全屏'" @click="toggleFullscreen">{{ isFullscreen
-        ? '⤢' : '⛶' }}</span>
-      <van-icon name="edit" size="20" class="color-icon" title="背景色" @click="showColorPicker = true" />
-      <van-button size="mini" type="primary" :loading="saving" @click="onSave">保存</van-button>
-    </div>
-
     <div class="editor" :style="editorStyle">
-      <van-field v-model="form.title" placeholder="标题" class="title-field" :style="{ background: 'transparent' }"
-        maxlength="200" />
+      <!-- 方案 A：顶部灵动胶囊抽屉面板（移动端收缩/展开；桌面端常驻） -->
+      <transition name="capsule-drawer">
+        <div v-show="isDesktop || mobileHeaderExpanded" class="capsule-drawer-panel"
+          :class="{ 'is-mobile-expanded': !isDesktop && mobileHeaderExpanded }">
+          <van-field v-model="form.title" placeholder="输入笔记标题..." class="title-field"
+            :style="{ background: 'transparent' }" maxlength="200" />
 
-      <!-- 方案A：分类/标签 Chips 化（label + pill + 移除× + 添加） -->
-      <div class="meta-row meta-row--chips" :style="{ borderTopColor: metaBorderColor, borderColor: metaBorderColor }">
-        <!-- 分类行 -->
-        <div class="meta-chip-row">
-          <span class="meta-label" :style="{ color: textColor }">分类</span>
-          <div class="meta-chips">
-            <span v-if="selectedCategory" class="chip chip--cat" :style="chipStyle.cat" @click="showCategoryPicker = true"
-              :title="'点击切换分类：' + selectedCategory.name">
-              <span class="chip-icon">📁</span>
-              <span class="chip-text">{{ selectedCategory.name }}</span>
-              <span class="chip-x" @click.stop="form.categoryId = null" title="移除分类">×</span>
-            </span>
-            <span v-else class="chip chip--add" @click="showCategoryPicker = true" :style="chipStyle.add" title="选择分类">＋
-              选分类</span>
+          <!-- 紧凑单行元信息栏（分类与标签合并单行水平流动胶囊） -->
+          <div class="meta-row meta-row--compact" :style="{ borderTopColor: metaBorderColor, borderColor: metaBorderColor }">
+            <div class="meta-scroll-chips">
+              <!-- 分类胶囊 -->
+              <span v-if="selectedCategory" class="chip chip--cat" :style="chipStyle.cat" @click="showCategoryPicker = true"
+                :title="'切换分类：' + selectedCategory.name">
+                <span class="chip-icon">📁</span>
+                <span class="chip-text">{{ selectedCategory.name }}</span>
+                <span class="chip-x" @click.stop="form.categoryId = null" title="移除分类">×</span>
+              </span>
+              <span v-else class="chip chip--add chip--add-cat" @click="showCategoryPicker = true" :style="chipStyle.add" title="选择分类">
+                <span class="chip-icon">📁</span>
+                <span class="chip-text">选分类</span>
+              </span>
+
+              <!-- 分隔线 -->
+              <span class="meta-chips-divider" :style="{ background: metaBorderColor }"></span>
+
+              <!-- 标签胶囊列表 -->
+              <span v-for="t in selectedTags" :key="t.id" class="chip chip--tag" :style="chipStyle.tag"
+                :title="'移除标签：' + t.name">
+                <span class="chip-icon">#</span>
+                <span class="chip-text">{{ t.name }}</span>
+                <span class="chip-x" @click.stop="removeTag(t.id)">×</span>
+              </span>
+              <span class="chip chip--add" @click="showTagPicker = true" :style="chipStyle.add" title="添加标签">
+                <span class="chip-icon">＋</span>
+                <span class="chip-text">标签</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- 移动端专属扩展操作条（置顶、大纲、搜索、全屏、调色） -->
+          <div v-if="!isDesktop" class="drawer-action-row">
+            <button type="button" class="drawer-action-btn" :class="{ 'is-active': form.isPinned }"
+              @click="form.isPinned = !form.isPinned">
+              <van-icon :name="form.isPinned ? 'star' : 'star-o'" size="16" :color="form.isPinned ? '#ff976a' : undefined" />
+              <span>{{ form.isPinned ? '已置顶' : '置顶' }}</span>
+            </button>
+            <button type="button" class="drawer-action-btn" @click="showOutline = !showOutline">
+              <span class="drawer-char-icon">☰</span>
+              <span>大纲</span>
+            </button>
+            <button type="button" class="drawer-action-btn" @click="openSearch">
+              <span class="drawer-char-icon">🔍</span>
+              <span>搜索</span>
+            </button>
+            <button type="button" class="drawer-action-btn" @click="toggleFullscreen">
+              <span class="drawer-char-icon">{{ isFullscreen ? '⤢' : '⛶' }}</span>
+              <span>{{ isFullscreen ? '退出全屏' : '全屏' }}</span>
+            </button>
+            <button type="button" class="drawer-action-btn" @click="showColorPicker = true">
+              <van-icon name="edit" size="16" class="color-icon" />
+              <span>背景色</span>
+            </button>
+          </div>
+
+          <!-- 移动端收起把手条 -->
+          <div v-if="!isDesktop" class="drawer-collapse-bar" @click="mobileHeaderExpanded = false" title="收起属性面板">
+            <span class="drawer-handle-bar"></span>
+            <span class="drawer-collapse-tip">收起面板 ▴</span>
           </div>
         </div>
-
-        <!-- 标签行 -->
-        <div class="meta-chip-row" :style="{ borderTopColor: metaBorderColor }">
-          <span class="meta-label" :style="{ color: textColor }">标签</span>
-          <div class="meta-chips">
-            <span v-for="t in selectedTags" :key="t.id" class="chip chip--tag" :style="chipStyle.tag"
-              :title="'点击移除标签：' + t.name">
-              <span class="chip-icon">#</span>
-              <span class="chip-text">{{ t.name }}</span>
-              <span class="chip-x" @click.stop="removeTag(t.id)">×</span>
-            </span>
-            <span class="chip chip--add" @click="showTagPicker = true" :style="chipStyle.add" title="添加标签">＋ 添加标签</span>
-          </div>
-        </div>
-      </div>
+      </transition>
 
       <div class="editor-body">
         <div v-show="mode === 'edit'" class="edit-area" :class="{ 'drag-over': dragOver }" :style="areaStyle"
@@ -188,16 +231,97 @@
         </div>
       </div>
 
-      <!-- 移动端：工具栏吸底常驻（动态 bottom: 跟随软键盘高度） -->
+      <!-- 移动端：吸底黄金快捷工具栏（零横向滚动，气泡聚合，单手全触达） -->
       <div v-if="!isDesktop" class="toolbar mobile-toolbar" :style="mobileToolbarStyle">
-        <div class="mobile-toolbar-scroll">
-          <template v-for="(b, bi) in toolbarButtons" :key="'mt-'+bi">
-            <van-button v-if="!b.divider" size="small" plain :type="b.primary ? 'primary' : undefined" @click="b.action">
-              <span v-html="b.label" />
-            </van-button>
-          </template>
-          <input ref="mobileFileInput" type="file" accept="image/*" style="display: none" @change="onFileChange" />
+        <!-- 弹层轻量遮罩：点击外部收起气泡 -->
+        <div v-if="activeMobileMenu" class="mobile-popover-backdrop" @click="activeMobileMenu = null" />
+
+        <!-- 1. 标题级别微气泡 -->
+        <transition name="bubble-pop">
+          <div v-if="activeMobileMenu === 'heading'" class="mobile-flyout-bubble bubble--heading">
+            <button type="button" class="bubble-btn" @click="applyHeading(1)">H1</button>
+            <button type="button" class="bubble-btn" @click="applyHeading(2)">H2</button>
+            <button type="button" class="bubble-btn" @click="applyHeading(3)">H3</button>
+            <button type="button" class="bubble-btn" @click="applyHeading(4)">H4</button>
+            <span class="bubble-sep"></span>
+            <button type="button" class="bubble-btn bubble-btn--sub" @click="applyHeading(0)">正文</button>
+          </div>
+        </transition>
+
+        <!-- 2. 列表结构微气泡 -->
+        <transition name="bubble-pop">
+          <div v-if="activeMobileMenu === 'list'" class="mobile-flyout-bubble bubble--list">
+            <button type="button" class="bubble-btn" @click="applyList('bullet')">• 无序</button>
+            <button type="button" class="bubble-btn" @click="applyList('number')">1. 有序</button>
+            <button type="button" class="bubble-btn" @click="applyList('todo')">☑ 待办</button>
+            <button type="button" class="bubble-btn" @click="applyList('quote')">❝ 引用</button>
+          </div>
+        </transition>
+
+        <!-- 3. 更多功能扩展托盘 -->
+        <transition name="bubble-pop">
+          <div v-if="activeMobileMenu === 'more'" class="mobile-flyout-bubble bubble--more">
+            <button type="button" class="bubble-btn" @click="insert('\n```\n', '\n```\n', '代码', 'block'); activeMobileMenu = null">
+              <span>{ }</span> 代码块
+            </button>
+            <button type="button" class="bubble-btn" @click="insert('~~', '~~', '', 'wrap'); activeMobileMenu = null">
+              <s>S</s> 删除线
+            </button>
+            <button type="button" class="bubble-btn" @click="insert('\n---\n', '', '', 'block'); activeMobileMenu = null">
+              ── 分割线
+            </button>
+            <button type="button" class="bubble-btn" @click="insert('[', '](https://)', '', 'wrap'); activeMobileMenu = null">
+              🔗 链接
+            </button>
+            <button type="button" class="bubble-btn" @click="insert('$', '$', '', 'wrap'); activeMobileMenu = null">
+              $ 公式
+            </button>
+            <button type="button" class="bubble-btn" @click="insert('\n$$\n', '\n$$\n', '公式', 'block'); activeMobileMenu = null">
+              $$ 块公式
+            </button>
+            <button type="button" class="bubble-btn" @click="formatFormulas(); activeMobileMenu = null">
+              fx 格式化
+            </button>
+          </div>
+        </transition>
+
+        <!-- 7 个黄金功能主按键条（无横向滑动，单手一屏全触达） -->
+        <div class="mobile-toolbar-actions">
+          <button type="button" class="mt-action-btn" :class="{ 'is-active': activeMobileMenu === 'heading' }"
+            @click="toggleMobileMenu('heading')" title="标题">
+            <span class="mt-label">H</span>
+            <span class="mt-arrow">▾</span>
+          </button>
+
+          <button type="button" class="mt-action-btn" @click="insert('**', '**', '', 'wrap')" title="粗体">
+            <b class="mt-label">B</b>
+          </button>
+
+          <button type="button" class="mt-action-btn" @click="insert('*', '*', '', 'wrap')" title="斜体">
+            <i class="mt-label">I</i>
+          </button>
+
+          <button type="button" class="mt-action-btn" :class="{ 'is-active': activeMobileMenu === 'list' }"
+            @click="toggleMobileMenu('list')" title="列表与待办">
+            <span class="mt-label">•≡</span>
+            <span class="mt-arrow">▾</span>
+          </button>
+
+          <button type="button" class="mt-action-btn" @click="insert('`', '`', '', 'wrap')" title="行内代码">
+            <span class="mt-label font-mono">&lt;/&gt;</span>
+          </button>
+
+          <button type="button" class="mt-action-btn" @click="triggerUpload" title="插入图片">
+            <span class="mt-label">🖼️</span>
+          </button>
+
+          <button type="button" class="mt-action-btn" :class="{ 'is-active': activeMobileMenu === 'more' }"
+            @click="toggleMobileMenu('more')" title="更多工具">
+            <span class="mt-label">···</span>
+          </button>
         </div>
+
+        <input ref="mobileFileInput" type="file" accept="image/*" style="display: none" @change="onFileChange" />
       </div>
     </div>
 
@@ -293,6 +417,50 @@ const mode = ref('edit')
 const saving = ref(false)
 const showCategoryPicker = ref(false)
 const showTagPicker = ref(false)
+// 方案 A：移动端顶部灵动胶囊展开态（折叠时只留 40px 胶囊，点击展开完整属性面板，打字或点击收起时折叠）
+const mobileHeaderExpanded = ref(false)
+function toggleMobileHeader() {
+  mobileHeaderExpanded.value = !mobileHeaderExpanded.value
+}
+
+// 移动端快捷工具栏微气泡菜单展开状态：'heading' | 'list' | 'more' | null
+const activeMobileMenu = ref(null)
+function toggleMobileMenu(menu) {
+  activeMobileMenu.value = activeMobileMenu.value === menu ? null : menu
+}
+
+// 移动端专用：定向切换/清除标题级别（智能替换行首现存 # 标头，支持 0 级转为普通正文）
+function applyHeading(level) {
+  activeMobileMenu.value = null
+  const ta = textareaRef.value
+  if (!ta) return
+  const start = ta.selectionStart
+  const lineStart = form.content.lastIndexOf('\n', start - 1) + 1
+  let lineEnd = form.content.indexOf('\n', start)
+  if (lineEnd === -1) lineEnd = form.content.length
+  const currentLine = form.content.substring(lineStart, lineEnd)
+
+  const cleanedLine = currentLine.replace(/^#{1,6}\s+/, '')
+  const prefix = level > 0 ? '#'.repeat(level) + ' ' : ''
+  const newLine = prefix + cleanedLine
+
+  form.content = form.content.substring(0, lineStart) + newLine + form.content.substring(lineEnd)
+  nextTick(() => {
+    ta.focus()
+    const newPos = Math.min(form.content.length, lineStart + newLine.length)
+    ta.setSelectionRange(newPos, newPos)
+  })
+}
+
+// 移动端专用：列表与结构切换
+function applyList(type) {
+  activeMobileMenu.value = null
+  if (type === 'bullet') insert('- ', '', '', 'line')
+  else if (type === 'number') insert('1. ', '', '', 'line')
+  else if (type === 'todo') insert('- [ ] ', '', '', 'line')
+  else if (type === 'quote') insert('> ', '', '', 'line')
+}
+
 // 内联新建（方案A：弹窗内直接创建，不再跳 /tags /categories 页）
 const newTagName = ref('')
 const newCategoryName = ref('')
@@ -705,6 +873,13 @@ function onTextareaBlur() {
   setTimeout(hideFloatingBar, 120)
 }
 function onTextareaFocus() {
+  // 聚焦输入正文时，移动端自动折叠顶部面板，并收起底部气泡，让键盘拥有纯净输入空间
+  if (mobileHeaderExpanded.value) {
+    mobileHeaderExpanded.value = false
+  }
+  if (activeMobileMenu.value) {
+    activeMobileMenu.value = null
+  }
   // =============== P1-6: 聚焦时把光标滚动到可视区中央，避免被软键盘遮挡 ===============
   nextTick(() => {
     const ta = textareaRef.value

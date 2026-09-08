@@ -1,27 +1,76 @@
 <template>
-  <div class="markdown-body" v-html="html"></div>
+  <div
+    ref="containerRef"
+    class="markdown-body"
+    :class="{ 'is-collapsible-enabled': collapsible }"
+    v-html="html"
+    @click="onContainerClick"
+  ></div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { marked } from 'marked'
+import { ref, computed, nextTick, watch } from 'vue'
+import { Marked } from 'marked'
 import markedKatex from 'marked-katex-extension'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 
 const props = defineProps({
-  content: { type: String, default: '' }
+  content: { type: String, default: '' },
+  collapsible: { type: Boolean, default: true }
 })
 
-marked.setOptions({ breaks: true, gfm: true })
-marked.use(markedKatex({
+const emit = defineEmits(['outline-change', 'collapse-change'])
+
+const containerRef = ref(null)
+const collapsedHeadingIds = ref(new Set())
+const headingParentsMap = new Map()
+const headingList = ref([])
+
+let headingCounter = 0
+let currentHeadings = []
+
+const markedInstance = new Marked()
+markedInstance.setOptions({ breaks: true, gfm: true })
+markedInstance.use(markedKatex({
   throwOnError: false,  // 公式有错时降级显示源码，不报错
   nonStandard: true     // 允许 $ 前后无空格的行内公式（如 $U=IR$）
 }))
 
+markedInstance.use({
+  renderer: {
+    heading(token) {
+      const id = `heading-${headingCounter++}`
+      const rawText = token.text ? token.text.replace(/<[^>]+>/g, '').trim() : ''
+      currentHeadings.push({
+        id,
+        level: token.depth,
+        text: rawText
+      })
+
+      if (!props.collapsible) {
+        return `<h${token.depth} id="${id}">${this.parser.parseInline(token.tokens)}</h${token.depth}>\n`
+      }
+
+      return `<h${token.depth} id="${id}" class="heading-collapsible" data-level="${token.depth}" data-heading-id="${id}">` +
+        `<button type="button" class="heading-collapse-toggle" data-heading-id="${id}" aria-label="折叠/展开本章节" title="折叠/展开本章节">` +
+        `<span class="heading-collapse-icon">▾</span>` +
+        `</button>` +
+        `<span class="heading-text">${this.parser.parseInline(token.tokens)}</span>` +
+        `</h${token.depth}>\n`
+    }
+  }
+})
+
 const html = computed(() => {
-  if (!props.content) return ''
-  let raw = marked.parse(props.content)
+  if (!props.content) {
+    headingList.value = []
+    emit('outline-change', [])
+    return ''
+  }
+  headingCounter = 0
+  currentHeadings = []
+  let raw = markedInstance.parse(props.content)
 
   // 为附件图片 URL 注入访问令牌（<img> 无法设置请求头）
   const token = localStorage.getItem('token')
@@ -32,7 +81,10 @@ const html = computed(() => {
     )
   }
 
-  // DOMPurify 默认会过滤 KaTeX 生成的 MathML 标签和属性，这里添加允许规则
+  headingList.value = [...currentHeadings]
+  emit('outline-change', headingList.value)
+
+  // DOMPurify 允许 MathML 和大纲折叠属性
   return DOMPurify.sanitize(raw, {
     ADD_TAGS: [
       'math', 'maction', 'maligngroup', 'malignmark', 'menclose',
@@ -41,7 +93,7 @@ const html = computed(() => {
       'mscarries', 'mscarry', 'msgroup', 'msline', 'mspace', 'msqrt',
       'mstack', 'mstyle', 'msub', 'msup', 'msubsup', 'mtable', 'mtd',
       'mtext', 'mtr', 'munder', 'munderover', 'semantics', 'annotation',
-      'annotation-xml'
+      'annotation-xml', 'button', 'span'
     ],
     ADD_ATTR: ['mathvariant', 'accent', 'accentunder', 'bevelled',
       'close', 'columnsalign', 'columnsline', 'columnspan', 'denomalign',
@@ -53,8 +105,272 @@ const html = computed(() => {
       'rspace', 'rquote', 'scriptlevel', 'scriptsizemultiplier',
       'scriptminsize', 'separator', 'separators', 'shift',
       'src', 'subscriptshift', 'supscriptshift',
-      'symmetric', 'voffset', 'width', 'xmlns', 'xlink:href'
+      'symmetric', 'voffset', 'width', 'xmlns', 'xlink:href',
+      'class', 'data-level', 'data-heading-id', 'title', 'aria-label', 'type'
     ]
   })
 })
+
+function rebuildHeadingHierarchy() {
+  const container = containerRef.value
+  if (!container) return
+
+  const stack = []
+  headingParentsMap.clear()
+
+  // 清理不存在的旧折叠 ID
+  const existingIds = new Set()
+  for (const child of Array.from(container.children)) {
+    if (/^H[1-6]$/.test(child.tagName) && child.id) {
+      existingIds.add(child.id)
+    }
+  }
+  for (const cid of Array.from(collapsedHeadingIds.value)) {
+    if (!existingIds.has(cid)) {
+      collapsedHeadingIds.value.delete(cid)
+    }
+  }
+
+  for (const child of Array.from(container.children)) {
+    if (child.classList.contains('heading-fold-banner')) {
+      continue
+    }
+    if (/^H[1-6]$/.test(child.tagName)) {
+      const level = parseInt(child.tagName.substring(1), 10)
+      while (stack.length > 0 && stack[stack.length - 1].level >= level) {
+        stack.pop()
+      }
+      headingParentsMap.set(child, stack.map(s => s.id))
+      stack.push({ id: child.id, level })
+    } else {
+      headingParentsMap.set(child, stack.map(s => s.id))
+    }
+  }
+
+  applyCollapseState()
+}
+
+function applyCollapseState() {
+  const container = containerRef.value
+  if (!container) return
+
+  const children = Array.from(container.children)
+  for (const child of children) {
+    if (child.classList.contains('heading-fold-banner')) {
+      continue
+    }
+
+    const parents = headingParentsMap.get(child) || []
+    const isHiddenByParent = parents.some(pid => collapsedHeadingIds.value.has(pid))
+
+    if (/^H[1-6]$/.test(child.tagName)) {
+      const isSelfCollapsed = collapsedHeadingIds.value.has(child.id)
+      child.classList.toggle('is-collapsed', isSelfCollapsed)
+
+      const icon = child.querySelector('.heading-collapse-icon')
+      if (icon) {
+        icon.textContent = isSelfCollapsed ? '▸' : '▾'
+      }
+
+      // 查找或创建折叠提示横幅
+      const nextEl = child.nextElementSibling
+      const banner = (nextEl && nextEl.classList.contains('heading-fold-banner') && nextEl.dataset.headingId === child.id) ? nextEl : null
+
+      if (isSelfCollapsed && !isHiddenByParent) {
+        child.style.display = ''
+        if (!banner) {
+          const newBanner = document.createElement('div')
+          newBanner.className = 'heading-fold-banner'
+          newBanner.dataset.headingId = child.id
+          newBanner.title = '点击展开本章节'
+          newBanner.innerHTML = `<span class="fold-banner-dots">···</span><span class="fold-banner-text">本章节内容已折叠</span><span class="fold-banner-action">展开 ▾</span>`
+          newBanner.addEventListener('click', (e) => {
+            e.stopPropagation()
+            toggleHeading(child.id)
+          })
+          child.insertAdjacentElement('afterend', newBanner)
+        } else {
+          banner.style.display = ''
+        }
+      } else {
+        if (banner) {
+          banner.style.display = 'none'
+        }
+        child.style.display = isHiddenByParent ? 'none' : ''
+      }
+    } else {
+      child.style.display = isHiddenByParent ? 'none' : ''
+    }
+  }
+
+  emit('collapse-change', Array.from(collapsedHeadingIds.value))
+}
+
+function toggleHeading(headingId) {
+  if (!headingId) return
+  if (collapsedHeadingIds.value.has(headingId)) {
+    collapsedHeadingIds.value.delete(headingId)
+  } else {
+    collapsedHeadingIds.value.add(headingId)
+  }
+  applyCollapseState()
+}
+
+function expandHeading(headingId) {
+  if (!headingId) return
+  const container = containerRef.value
+  if (!container) return
+  const headingEl = document.getElementById(headingId)
+  if (headingEl) {
+    const parents = headingParentsMap.get(headingEl) || []
+    for (const pid of parents) {
+      collapsedHeadingIds.value.delete(pid)
+    }
+  }
+  collapsedHeadingIds.value.delete(headingId)
+  applyCollapseState()
+}
+
+function foldAll() {
+  for (const h of headingList.value) {
+    collapsedHeadingIds.value.add(h.id)
+  }
+  applyCollapseState()
+}
+
+function unfoldAll() {
+  collapsedHeadingIds.value.clear()
+  applyCollapseState()
+}
+
+function onContainerClick(e) {
+  if (!props.collapsible) return
+  const toggleBtn = e.target.closest('.heading-collapse-toggle')
+  if (toggleBtn) {
+    e.preventDefault()
+    e.stopPropagation()
+    const headingId = toggleBtn.dataset.headingId
+    toggleHeading(headingId)
+    return
+  }
+
+  const heading = e.target.closest('.heading-collapsible')
+  if (heading && !e.target.closest('a')) {
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim().length > 0) {
+      return
+    }
+    toggleHeading(heading.id)
+  }
+}
+
+watch(html, () => {
+  if (!props.collapsible) return
+  nextTick(() => {
+    rebuildHeadingHierarchy()
+  })
+}, { immediate: true })
+
+defineExpose({
+  foldAll,
+  unfoldAll,
+  toggleHeading,
+  expandHeading,
+  getHeadings: () => headingList.value,
+  getCollapsedIds: () => Array.from(collapsedHeadingIds.value)
+})
 </script>
+
+<style>
+/* 章节折叠样式（非 scoped，作用于 v-html 生成的内容） */
+.markdown-body.is-collapsible-enabled .heading-collapsible {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: text;
+  transition: opacity 0.15s ease;
+}
+
+.markdown-body.is-collapsible-enabled .heading-collapsible:hover {
+  opacity: 0.88;
+}
+
+.markdown-body .heading-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.markdown-body .heading-collapse-toggle:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.markdown-body .heading-collapse-icon {
+  font-size: 13px;
+  line-height: 1;
+  display: inline-block;
+  user-select: none;
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.markdown-body .heading-collapsible.is-collapsed .heading-collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.markdown-body .heading-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 折叠后的提示胶囊横幅 */
+.markdown-body .heading-fold-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 16px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.07);
+  border: 1px dashed rgba(128, 128, 128, 0.28);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.markdown-body .heading-fold-banner:hover {
+  background: rgba(25, 137, 250, 0.08);
+  border-color: rgba(25, 137, 250, 0.4);
+}
+
+.markdown-body .fold-banner-dots {
+  font-weight: bold;
+  letter-spacing: 2px;
+  opacity: 0.6;
+}
+
+.markdown-body .fold-banner-text {
+  opacity: 0.75;
+}
+
+.markdown-body .fold-banner-action {
+  color: #1989fa;
+  font-weight: 500;
+  font-size: 12px;
+  margin-left: auto;
+}
+</style>

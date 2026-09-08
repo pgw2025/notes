@@ -1,9 +1,17 @@
 <template>
-  <div class="page" :style="pageStyle">
+  <div class="page" :class="{ 'has-desktop-toc': headings.length > 0 && showDesktopToc }" :style="pageStyle">
     <van-nav-bar title="笔记详情" left-arrow @click-left="$router.back()">
       <template #right>
         <!-- 桌面端单行布局：按钮在标题右侧 -->
         <div class="nav-right nav-actions--desktop">
+          <van-icon
+            v-if="headings.length"
+            name="bars"
+            size="20"
+            :style="{ color: showDesktopToc ? '#1989fa' : navIconColor }"
+            title="切换大纲侧栏"
+            @click="showDesktopToc = !showDesktopToc"
+          />
           <van-icon
             :name="note?.isPinned ? 'star' : 'star-o'"
             size="20"
@@ -20,6 +28,14 @@
     <!-- 移动端第二行：按钮独占一行，与标题完全不重叠 -->
     <div class="nav-actions nav-actions--mobile">
       <van-icon
+        v-if="headings.length"
+        name="bars"
+        size="20"
+        :style="{ color: navIconColor }"
+        title="文章大纲"
+        @click="showMobileToc = true"
+      />
+      <van-icon
         :name="note?.isPinned ? 'star' : 'star-o'"
         size="20"
         :color="note?.isPinned ? '#ff976a' : navIconColor"
@@ -30,46 +46,147 @@
       <van-icon name="edit" size="20" :style="{ color: navIconColor }" @click="note && $router.push(`/notes/${note.id}/edit`)" />
     </div>
 
-    <div v-if="note" class="detail" :style="{ color: textColor }">
-      <h1 class="detail-title">{{ note.title || '无标题' }}</h1>
+    <div v-if="note" class="detail-container">
+      <!-- 核心正文阅读区 -->
+      <div class="detail-main" :style="{ color: textColor }">
+        <h1 class="detail-title">{{ note.title || '无标题' }}</h1>
 
-      <div class="detail-meta">
-        <van-tag v-if="note.categoryName" type="primary" size="medium" :style="tagStyle">{{ note.categoryName }}</van-tag>
-        <van-tag
-          v-for="t in note.tags"
-          :key="t"
-          plain
-          size="medium"
-          :style="tagStyle"
-        >{{ t }}</van-tag>
+        <div class="detail-meta">
+          <van-tag v-if="note.categoryName" type="primary" size="medium" :style="tagStyle">{{ note.categoryName }}</van-tag>
+          <van-tag
+            v-for="t in note.tags"
+            :key="t"
+            plain
+            size="medium"
+            :style="tagStyle"
+          >{{ t }}</van-tag>
+        </div>
+
+        <div class="detail-time" :style="{ color: subTextColor }">
+          创建于 {{ formatDateTime(note.createdAt) }} · 更新于 {{ formatDateTime(note.updatedAt) }}
+        </div>
+
+        <markdown-body
+          ref="markdownBodyRef"
+          :content="note.content"
+          :style="{ color: textColor }"
+          @outline-change="onOutlineChange"
+          @collapse-change="onCollapseChange"
+        />
+
+        <div v-if="note.attachments?.length" class="attachments">
+          <div class="section-title" :style="{ color: subTextColor }">附件</div>
+          <van-cell-group inset>
+            <van-cell
+              v-for="a in note.attachments"
+              :key="a.id"
+              :title="a.fileName"
+              :value="formatSize(a.size)"
+              is-link
+              :url="attachmentUrl(a.id, a.fileName)"
+            >
+              <template #icon>
+                <van-icon :name="isImage(a.contentType) ? 'photo-o' : 'description'" class="att-icon" />
+              </template>
+            </van-cell>
+          </van-cell-group>
+        </div>
       </div>
 
-      <div class="detail-time" :style="{ color: subTextColor }">
-        创建于 {{ formatDateTime(note.createdAt) }} · 更新于 {{ formatDateTime(note.updatedAt) }}
-      </div>
-
-      <markdown-body :content="note.content" :style="{ color: textColor }" />
-
-      <div v-if="note.attachments?.length" class="attachments">
-        <div class="section-title" :style="{ color: subTextColor }">附件</div>
-        <van-cell-group inset>
-          <van-cell
-            v-for="a in note.attachments"
-            :key="a.id"
-            :title="a.fileName"
-            :value="formatSize(a.size)"
-            is-link
-            :url="attachmentUrl(a.id, a.fileName)"
-          >
-            <template #icon>
-              <van-icon :name="isImage(a.contentType) ? 'photo-o' : 'description'" class="att-icon" />
-            </template>
-          </van-cell>
-        </van-cell-group>
-      </div>
+      <!-- 桌面端侧边悬浮大纲栏 (Sticky TOC) -->
+      <aside
+        v-if="headings.length && showDesktopToc"
+        class="desktop-toc-aside"
+        :style="{ color: textColor }"
+      >
+        <div class="toc-card">
+          <div class="toc-header">
+            <div class="toc-header-title">
+              <van-icon name="bars" class="toc-header-icon" />
+              <span>大纲</span>
+              <span class="toc-badge">{{ headings.length }}</span>
+            </div>
+            <div class="toc-header-actions">
+              <button type="button" class="toc-action-btn" @click="foldAll" title="折叠全部章节">折叠全部</button>
+              <span class="toc-action-sep">·</span>
+              <button type="button" class="toc-action-btn" @click="unfoldAll" title="展开全部章节">展开全部</button>
+            </div>
+          </div>
+          <nav class="toc-nav-list" ref="tocNavRef">
+            <button
+              v-for="h in headings"
+              :key="h.id"
+              type="button"
+              class="toc-nav-item"
+              :class="[
+                'toc-level-' + h.level,
+                { 'is-active': activeHeadingId === h.id },
+                { 'is-folded': collapsedSet.has(h.id) }
+              ]"
+              @click="onTocClick(h.id)"
+            >
+              <span class="toc-indicator"></span>
+              <span class="toc-text">{{ h.text }}</span>
+              <span v-if="collapsedSet.has(h.id)" class="toc-fold-flag">已折叠</span>
+            </button>
+          </nav>
+        </div>
+      </aside>
     </div>
 
     <van-loading v-else class="loading" type="spinner" />
+
+    <!-- 移动端：悬浮大纲胶囊（随屏滚动提示进度，点击呼出半屏抽屉） -->
+    <transition name="van-fade">
+      <div
+        v-if="headings.length && !showMobileToc"
+        class="mobile-toc-capsule"
+        @click="showMobileToc = true"
+      >
+        <span class="mtc-icon">☰</span>
+        <span class="mtc-text">大纲</span>
+        <span class="mtc-count">{{ activeHeadingIndex >= 0 ? (activeHeadingIndex + 1) + '/' + headings.length : headings.length }}</span>
+      </div>
+    </transition>
+
+    <!-- 移动端：大纲抽屉 Popup -->
+    <van-popup
+      v-model:show="showMobileToc"
+      position="bottom"
+      round
+      class="mobile-toc-popup"
+      :style="{ maxHeight: '76vh' }"
+    >
+      <div class="mobile-toc-header">
+        <div class="mth-left">
+          <span class="mth-title">文章大纲</span>
+          <span class="mth-count">{{ headings.length }} 节</span>
+        </div>
+        <div class="mth-actions">
+          <button type="button" class="mth-btn" @click="foldAll">折叠全部</button>
+          <span class="mth-btn-sep">·</span>
+          <button type="button" class="mth-btn" @click="unfoldAll">展开全部</button>
+          <van-icon name="cross" size="20" class="mth-close" @click="showMobileToc = false" />
+        </div>
+      </div>
+      <div class="mobile-toc-list">
+        <div
+          v-for="h in headings"
+          :key="h.id"
+          class="mobile-toc-item"
+          :class="[
+            'mti-level-' + h.level,
+            { 'is-active': activeHeadingId === h.id },
+            { 'is-folded': collapsedSet.has(h.id) }
+          ]"
+          @click="onMobileTocSelect(h.id)"
+        >
+          <span class="mti-indicator"></span>
+          <span class="mti-text">{{ h.text }}</span>
+          <span v-if="collapsedSet.has(h.id)" class="mti-fold-flag">已折叠</span>
+        </div>
+      </div>
+    </van-popup>
 
     <!-- =============== 历史版本 Popup =============== -->
     <van-popup
@@ -184,7 +301,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast, showConfirmDialog, showSuccessToast } from 'vant'
 import http from '../api/http'
@@ -199,6 +316,100 @@ const route = useRoute()
 const auth = useAuthStore()
 const theme = useThemeStore()
 const note = ref(null)
+
+// ================= 大纲（TOC）与章节折叠 =================
+const markdownBodyRef = ref(null)
+const headings = ref([])
+const collapsedSet = ref(new Set())
+const activeHeadingId = ref('')
+const showDesktopToc = ref(true)
+const showMobileToc = ref(false)
+let headingObserver = null
+
+const activeHeadingIndex = computed(() =>
+  headings.value.findIndex(h => h.id === activeHeadingId.value)
+)
+
+function onOutlineChange(list) {
+  headings.value = list || []
+  if (headings.value.length && !activeHeadingId.value) {
+    activeHeadingId.value = headings.value[0].id
+  }
+  setupHeadingObserver()
+}
+
+function onCollapseChange(ids) {
+  collapsedSet.value = new Set(ids)
+}
+
+function foldAll() {
+  markdownBodyRef.value?.foldAll()
+}
+
+function unfoldAll() {
+  markdownBodyRef.value?.unfoldAll()
+}
+
+function onTocClick(headingId) {
+  markdownBodyRef.value?.expandHeading(headingId)
+  activeHeadingId.value = headingId
+  nextTick(() => {
+    const el = document.getElementById(headingId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  })
+}
+
+function onMobileTocSelect(headingId) {
+  showMobileToc.value = false
+  markdownBodyRef.value?.expandHeading(headingId)
+  activeHeadingId.value = headingId
+  nextTick(() => {
+    const el = document.getElementById(headingId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  })
+}
+
+function setupHeadingObserver() {
+  if (headingObserver) {
+    headingObserver.disconnect()
+    headingObserver = null
+  }
+  if (!headings.value.length) return
+
+  nextTick(() => {
+    try {
+      headingObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              activeHeadingId.value = entry.target.id
+            }
+          }
+        },
+        {
+          rootMargin: '-70px 0px -65% 0px'
+        }
+      )
+      for (const h of headings.value) {
+        const el = document.getElementById(h.id)
+        if (el) headingObserver.observe(el)
+      }
+    } catch {
+      // 容错处理
+    }
+  })
+}
+
+onUnmounted(() => {
+  if (headingObserver) {
+    headingObserver.disconnect()
+    headingObserver = null
+  }
+})
 
 // 导出
 const showExportSheet = ref(false)
@@ -370,9 +581,25 @@ onMounted(loadNote)
   align-items: center;
   padding-right: 10px;
 }
-.detail {
+.detail-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 28px;
   padding: 16px;
+  position: relative;
 }
+
+.detail-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 820px;
+}
+
+.desktop-toc-aside {
+  display: none;
+}
+
 .detail-title {
   font-size: 22px;
   font-weight: 700;
@@ -401,6 +628,371 @@ onMounted(loadNote)
   margin-right: 8px;
   font-size: 18px;
   color: var(--color-primary);
+}
+
+/* ========== 桌面端大纲侧栏 ========== */
+.toc-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+:global(body.dark) .toc-card {
+  background: #242830;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+}
+
+.toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toc-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.toc-header-icon {
+  font-size: 14px;
+  color: var(--color-primary);
+}
+
+.toc-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(25, 137, 250, 0.1);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.toc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toc-action-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.toc-action-btn:hover {
+  color: var(--color-primary);
+  background: rgba(25, 137, 250, 0.08);
+}
+
+.toc-action-sep {
+  font-size: 11px;
+  opacity: 0.4;
+}
+
+.toc-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
+.toc-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1.4;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.toc-nav-item:hover {
+  background: rgba(128, 128, 128, 0.08);
+  color: var(--text-primary);
+}
+
+.toc-nav-item.is-active {
+  color: var(--color-primary);
+  font-weight: 600;
+  background: rgba(25, 137, 250, 0.08);
+}
+
+.toc-indicator {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  flex-shrink: 0;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.toc-nav-item.is-active .toc-indicator {
+  opacity: 1;
+  transform: scale(1.5);
+  background: var(--color-primary);
+}
+
+.toc-level-1 {
+  font-weight: 500;
+  padding-left: 8px;
+}
+.toc-level-2 {
+  padding-left: 18px;
+  font-size: 12.5px;
+}
+.toc-level-3 {
+  padding-left: 28px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+.toc-level-4, .toc-level-5, .toc-level-6 {
+  padding-left: 36px;
+  font-size: 11.5px;
+  opacity: 0.8;
+}
+
+.toc-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toc-fold-flag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* ========== 移动端悬浮大纲胶囊 ========== */
+.mobile-toc-capsule {
+  position: fixed;
+  right: 18px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mobile-toc-capsule:active {
+  transform: scale(0.95);
+}
+
+:global(body.dark) .mobile-toc-capsule {
+  background: rgba(36, 40, 48, 0.94);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+
+.mtc-icon {
+  font-size: 13px;
+  color: var(--color-primary);
+}
+
+.mtc-text {
+  font-size: 13px;
+}
+
+.mtc-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(25, 137, 250, 0.1);
+  color: var(--color-primary);
+}
+
+/* ========== 移动端底部大纲抽屉 ========== */
+.mobile-toc-popup {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: inherit;
+  z-index: 2;
+}
+
+.mth-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mth-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mth-count {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(25, 137, 250, 0.1);
+  color: var(--color-primary);
+}
+
+.mth-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mth-btn {
+  background: rgba(128, 128, 128, 0.08);
+  border: none;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.mth-btn:active {
+  background: rgba(25, 137, 250, 0.15);
+  color: var(--color-primary);
+}
+
+.mth-btn-sep {
+  font-size: 12px;
+  opacity: 0.3;
+}
+
+.mth-close {
+  margin-left: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.mobile-toc-list {
+  padding: 10px 14px 28px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobile-toc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mobile-toc-item:active {
+  background: rgba(25, 137, 250, 0.08);
+}
+
+.mobile-toc-item.is-active {
+  background: rgba(25, 137, 250, 0.1);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.mti-indicator {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.mobile-toc-item.is-active .mti-indicator {
+  opacity: 1;
+  transform: scale(1.4);
+  background: var(--color-primary);
+}
+
+.mti-level-1 {
+  font-weight: 600;
+  padding-left: 10px;
+}
+.mti-level-2 {
+  padding-left: 22px;
+  font-size: 13.5px;
+}
+.mti-level-3 {
+  padding-left: 34px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+.mti-level-4, .mti-level-5, .mti-level-6 {
+  padding-left: 44px;
+  font-size: 12.5px;
+  opacity: 0.8;
+}
+
+.mti-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mti-fold-flag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 .loading {
   display: flex;
@@ -540,9 +1132,21 @@ onMounted(loadNote)
     max-width: 820px;
     margin: 0 auto;
     padding-bottom: 48px;
+    transition: max-width 0.2s ease;
   }
-  .detail {
+  .page.has-desktop-toc {
+    max-width: 1120px;
+  }
+  .detail-container {
     padding: 24px 32px;
+  }
+  .desktop-toc-aside {
+    display: block;
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 64px;
+    z-index: 10;
   }
   .detail-title {
     font-size: 26px;
