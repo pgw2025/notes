@@ -49,6 +49,8 @@ public class AdminCategoriesController : ControllerBase
                 c.Id,
                 c.Name,
                 c.UserId,
+                c.ParentId,
+                ParentName = c.Parent != null ? c.Parent.Name : null,
                 c.CreatedAt,
                 NoteCount = c.Notes.Count
             })
@@ -66,12 +68,14 @@ public class AdminCategoriesController : ControllerBase
             userMap.GetValueOrDefault(c.UserId)?.Email,
             userMap.GetValueOrDefault(c.UserId)?.DisplayName,
             c.NoteCount,
+            c.ParentId,
+            c.ParentName,
             c.CreatedAt)).ToList();
 
         return Ok(new AdminCategoryListResponseDto(items, total));
     }
 
-    /// <summary>管理员重命名分类（同用户内唯一，冲突返回 409）</summary>
+    /// <summary>管理员重命名分类（同用户、同父级下唯一，冲突返回 409）</summary>
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Rename(int id, RenameCategoryDto dto)
     {
@@ -82,21 +86,29 @@ public class AdminCategoriesController : ControllerBase
         var category = await _db.Categories.FirstOrDefaultAsync(c => c.Id == id);
         if (category == null) return NotFound();
 
+        // 唯一性：同一用户、同一父级下名称唯一（多级分类下同父级才冲突）
         var exists = await _db.Categories.AnyAsync(c =>
-            c.UserId == category.UserId && c.Name == name && c.Id != id);
-        if (exists) return Conflict(new { message = "该用户下已存在同名分类" });
+            c.UserId == category.UserId &&
+            c.ParentId == category.ParentId &&
+            c.Name == name &&
+            c.Id != id);
+        if (exists) return Conflict(new { message = "该用户下同一层级已存在同名分类" });
 
         category.Name = name;
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
-    /// <summary>删除分类（Note.CategoryId 为 SetNull，笔记自动变为未分类）</summary>
+    /// <summary>删除分类（Note.CategoryId 为 SetNull，笔记自动变为未分类；有子分类时拒绝删除）</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
         var category = await _db.Categories.FirstOrDefaultAsync(c => c.Id == id);
         if (category == null) return NotFound();
+
+        var hasChildren = await _db.Categories.AnyAsync(c => c.ParentId == id);
+        if (hasChildren)
+            return BadRequest(new { message = "该分类下还有子分类，请先删除或移动子分类" });
 
         _db.Categories.Remove(category);
         await _db.SaveChangesAsync();

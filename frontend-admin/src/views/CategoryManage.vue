@@ -31,6 +31,13 @@
             </template>
           </el-table-column>
 
+          <el-table-column label="父分类" min-width="140">
+            <template #default="{ row }">
+              <el-tag v-if="row.parentName" size="small" effect="plain">{{ row.parentName }}</el-tag>
+              <span v-else class="text-muted">—（顶级）</span>
+            </template>
+          </el-table-column>
+
           <el-table-column label="所属用户" min-width="180">
             <template #default="{ row }">
               <div class="user-meta">
@@ -79,6 +86,10 @@
           </div>
 
           <div class="mobile-cat-meta">
+            <div class="meta-row">
+              <span class="meta-label">父分类：</span>
+              <span class="meta-val">{{ cat.parentName || '—（顶级）' }}</span>
+            </div>
             <div class="meta-row">
               <span class="meta-label">归属用户：</span>
               <span class="meta-val">{{ cat.userDisplayName || cat.userEmail }}</span>
@@ -300,6 +311,11 @@ onMounted(load)
 .date-text {
   font-size: 12px;
   color: #64748b;
+}
+
+.text-muted {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
 .table-actions {

@@ -57,6 +57,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         // 离线时 SPA 路由回落到 index.html，保证断网刷新不白屏
         navigateFallback: 'index.html',
+        // 排除 /admin/ 路径：管理后台是独立应用，不能被主站的离线回退劫持，
+        // 否则已注册 SW 的浏览器访问 /admin/ 会返回主站 index.html
+        navigateFallbackDenylist: [/^\/admin\//],
         // 预缓存最多 60 个静态资源，避免过大的清单
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         cleanupOutdatedCaches: true,
