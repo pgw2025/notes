@@ -22,8 +22,6 @@
       <!-- Desktop Table View -->
       <div class="desktop-table hidden-mobile">
         <el-table v-loading="loading" :data="users" stripe style="width: 100%">
-          <el-table-column prop="id" label="ID" width="70" align="center" />
-          
           <el-table-column label="用户信息" min-width="180">
             <template #default="{ row }">
               <div class="user-cell">
