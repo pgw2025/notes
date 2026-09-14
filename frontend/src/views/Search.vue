@@ -390,7 +390,7 @@ onMounted(() => {
 /* 桌面端：紧凑居中宽度 */
 @media (min-width: 1024px) {
   .page {
-    max-width: var(--page-width-compact, 860px);
+    max-width: none;
     margin: 0 auto;
     padding-bottom: 32px;
   }

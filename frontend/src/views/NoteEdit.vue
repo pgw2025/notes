@@ -20,11 +20,11 @@
         <div v-if="isDesktop" class="nav-actions nav-actions--desktop">
           <van-icon :name="form.isPinned ? 'star' : 'star-o'" size="20" :color="form.isPinned ? '#ff976a' : undefined"
             @click="form.isPinned = !form.isPinned" />
-          <!-- 编辑/预览 模式切换（单按钮双向切换，替代原双Tabs） -->
-          <span class="nav-icon nav-char-btn" @click="mode = mode === 'edit' ? 'preview' : 'edit'"
-            :title="mode === 'edit' ? '切换到预览' : '切换到编辑'">
-            <template v-if="mode === 'edit'">👁</template>
-            <template v-else>✎</template>
+          <!-- 桌面端：预览开关（左编辑右预览分栏，默认开启；点击显示/隐藏右栏预览） -->
+          <span class="nav-icon nav-char-btn" @click="togglePreviewVisible"
+            :title="previewVisible ? '隐藏预览' : '显示预览'">
+            <template v-if="previewVisible">👁</template>
+            <template v-else>👁‍🗨</template>
           </span>
           <!-- P2-1 大纲按钮 -->
           <span class="nav-icon nav-char-btn" title="大纲 (Ctrl+Shift+O)" @click="showOutline = !showOutline">☰</span>
@@ -134,8 +134,8 @@
         </div>
       </transition>
 
-      <div class="editor-body">
-        <div v-show="mode === 'edit'" class="edit-area" :class="{ 'drag-over': dragOver }" :style="areaStyle"
+      <div class="editor-body" :class="{ 'preview-hidden': isDesktop && !previewVisible }">
+        <div v-show="isDesktop || mode === 'edit'" class="edit-area" :class="{ 'drag-over': dragOver }" :style="areaStyle"
           @dragover.prevent.stop="onDragOver" @dragleave.prevent.stop="onDragLeave" @drop.prevent.stop="onDrop">
           <!-- 桌面端：工具栏位于 textarea 上方 -->
           <div v-if="isDesktop" class="toolbar desktop-toolbar">
@@ -226,7 +226,13 @@
           </div>
         </div>
 
-        <div v-show="mode === 'preview'" class="preview-area" :style="areaStyle">
+        <div
+          v-show="isDesktop ? previewVisible : mode === 'preview'"
+          ref="previewAreaRef"
+          class="preview-area"
+          :style="areaStyle"
+          @scroll="onPreviewScroll"
+        >
           <markdown-body :content="form.content || '*暂无内容*'" :style="{ color: textColor }" />
         </div>
       </div>
@@ -417,6 +423,22 @@ const categories = ref([])
 const tags = ref([])
 const mode = ref('edit')
 const saving = ref(false)
+
+// =============== 桌面端左右分栏预览 ===============
+// 桌面端预览开关（默认开启）；记忆到 localStorage，下次进入编辑页时恢复。
+// 移动端不受影响，仍走 mode 单栏切换。
+const PREVIEW_VISIBLE_KEY = 'note_edit_preview_visible'
+const previewVisible = ref(
+  typeof localStorage !== 'undefined'
+    ? localStorage.getItem(PREVIEW_VISIBLE_KEY) !== '0'
+    : true
+)
+function togglePreviewVisible() {
+  previewVisible.value = !previewVisible.value
+  try {
+    localStorage.setItem(PREVIEW_VISIBLE_KEY, previewVisible.value ? '1' : '0')
+  } catch { /* ignore */ }
+}
 const showCategoryPicker = ref(false)
 const showTagPicker = ref(false)
 
@@ -480,6 +502,11 @@ const showColorPicker = ref(false)
 const textareaRef = ref(null)
 const fileInput = ref(null)
 const mobileFileInput = ref(null)
+// 桌面端分栏预览的滚动容器（.preview-area）
+const previewAreaRef = ref(null)
+// 滚动联动开关：避免「编辑滚动→同步预览」反向再触发「预览滚动→同步编辑」的死循环
+let _syncFromEditor = false
+let _syncFromPreview = false
 // ========== 搜索面板拖动 ==========
 const searchPanelRef = ref(null)
 const searchDragX = ref(null)
@@ -1020,8 +1047,48 @@ function onTextareaScroll() {
   // P2-1: 滚动时更新大纲高亮（节流 30ms）
   if (_scrollTimer) clearTimeout(_scrollTimer)
   _scrollTimer = setTimeout(updateActiveHeading, 30)
+
+  // 桌面端分栏：编辑区滚动 → 按比例同步预览区滚动
+  syncPreviewScrollFromEditor()
 }
 let _scrollTimer = null
+
+// =============== 桌面端分栏：编辑↔预览滚动联动 ===============
+function syncPreviewScrollFromEditor() {
+  if (!isDesktop.value) return
+  if (_syncFromPreview) return // 本轮滚动来自预览区，避免反向回环
+  const ta = textareaRef.value
+  const pv = previewAreaRef.value
+  if (!ta || !pv) return
+
+  // 编辑区可滚动范围
+  const maxEditor = ta.scrollHeight - ta.clientHeight
+  const maxPreview = pv.scrollHeight - pv.clientHeight
+  if (maxEditor <= 0 || maxPreview <= 0) return
+
+  // 按滚动比例同步（编辑滚动百分比 → 预览滚动到相同百分比）
+  const ratio = ta.scrollTop / maxEditor
+  _syncFromEditor = true
+  pv.scrollTop = ratio * maxPreview
+  requestAnimationFrame(() => { _syncFromEditor = false })
+}
+
+function onPreviewScroll() {
+  if (!isDesktop.value) return
+  if (_syncFromEditor) return // 本轮滚动来自编辑区，避免反向回环
+  const ta = textareaRef.value
+  const pv = previewAreaRef.value
+  if (!ta || !pv) return
+
+  const maxEditor = ta.scrollHeight - ta.clientHeight
+  const maxPreview = pv.scrollHeight - pv.clientHeight
+  if (maxEditor <= 0 || maxPreview <= 0) return
+
+  const ratio = pv.scrollTop / maxPreview
+  _syncFromPreview = true
+  ta.scrollTop = ratio * maxEditor
+  requestAnimationFrame(() => { _syncFromPreview = false })
+}
 
 // =============== P2-2 搜索 & 替换 ===============
 const showSearch = ref(false)

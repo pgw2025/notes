@@ -770,7 +770,7 @@ onActivated(() => {
     display: block;
   }
   .page {
-    max-width: var(--page-width-wide, 1180px);
+    max-width: none;
     margin: 0 auto;
     padding-bottom: 32px;
   }
@@ -794,7 +794,7 @@ onActivated(() => {
   }
   .notes-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 16px;
     padding: 8px 0 24px;
   }
@@ -814,12 +814,6 @@ onActivated(() => {
   .note-card {
     cursor: pointer;
     height: 100%;
-  }
-}
-
-@media (min-width: 1440px) {
-  .notes-grid {
-    grid-template-columns: repeat(3, 1fr);
   }
 }
 </style>

@@ -1565,9 +1565,9 @@
 /* 桌面端：编辑/预览并排显示 */
 @media (min-width: 1024px) {
   .page {
-    max-width: var(--page-width-wide, 1180px);
+    max-width: none;
     margin: 0 auto;
-    min-height: calc(100vh - 40px);
+    height: calc(100vh - 40px);
     border-left: 1px solid var(--border);
     border-right: 1px solid var(--border);
   }
@@ -1577,27 +1577,35 @@
   }
 
   .editor-body {
-    flex-direction: column;
+    flex-direction: row;
     gap: 0;
     border: none;
     border-radius: 0;
     overflow: hidden;
-    min-height: 60vh;
+    min-height: 0;
   }
 
   .edit-area {
-    flex: 1 1 auto;
+    flex: 1 1 60%;
+    min-width: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  /* 预览关闭时：编辑区占满整个分栏容器 */
+  .editor-body.preview-hidden .edit-area {
+    flex: 1 1 100%;
     border-right: none;
   }
 
   .preview-area {
-    flex: 1 1 auto;
-    min-height: 60vh;
+    flex: 1 1 40%;
+    min-width: 0;
+    min-height: 0;
     padding: 14px 20px;
   }
 
   .content-area {
-    min-height: 60vh;
+    min-height: 0;
     padding-bottom: 40px;
   }
 
@@ -1608,5 +1616,11 @@
 
   .mobile-toolbar {
     display: none;
+  }
+
+  /* 桌面端全屏：分栏容器填满视口剩余高度（标题栏已隐藏） */
+  .page--fullscreen .editor-body {
+    min-height: 0;
+    height: calc(100vh - 88px);
   }
 }

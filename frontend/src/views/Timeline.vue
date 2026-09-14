@@ -535,7 +535,7 @@ watch(() => filters.keyword, () => {
 /* ========== 桌面端适配 ========== */
 @media (min-width: 1024px) {
   .page {
-    max-width: var(--page-width-wide, 1180px);
+    max-width: none;
     margin: 0 auto;
     padding-bottom: 48px;
   }

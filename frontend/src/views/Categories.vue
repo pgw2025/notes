@@ -351,12 +351,12 @@ onActivated(load)
 /* 桌面端：紧凑居中宽度 */
 @media (min-width: 1024px) {
   .page {
-    max-width: var(--page-width-compact, 860px);
+    max-width: none;
     margin: 0 auto;
     padding-bottom: 32px;
   }
   .category-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 16px;
   }
   :deep(.form-popup) {
