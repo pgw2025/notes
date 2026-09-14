@@ -64,7 +64,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="220" align="center" fixed="right">
+          <el-table-column label="操作" width="260" align="center" fixed="right">
             <template #default="{ row }">
               <div class="table-actions">
                 <el-button
@@ -77,6 +77,9 @@
                 </el-button>
                 <el-button size="small" type="primary" link @click="openResetPwd(row)">
                   重置密码
+                </el-button>
+                <el-button size="small" type="info" link @click="viewActivity(row)">
+                  记录
                 </el-button>
                 <el-button
                   size="small"
@@ -143,6 +146,9 @@
             <el-button size="small" type="primary" plain @click="openResetPwd(user)">
               重置密码
             </el-button>
+            <el-button size="small" type="info" plain @click="viewActivity(user)">
+              记录
+            </el-button>
             <el-button
               size="small"
               type="danger"
@@ -196,9 +202,12 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import http from '../api/http'
+
+const router = useRouter()
 
 const loading = ref(false)
 const users = ref([])
@@ -285,6 +294,10 @@ function openResetPwd(user) {
   targetUser.value = user
   pwdForm.newPassword = ''
   resetPwdDialog.value = true
+}
+
+function viewActivity(user) {
+  router.push({ name: 'activities', query: { userId: user.id } })
 }
 
 async function handleResetPwd() {
@@ -478,7 +491,7 @@ onMounted(() => {
 
 .mobile-card-actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 

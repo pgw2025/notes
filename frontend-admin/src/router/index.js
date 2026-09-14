@@ -48,6 +48,12 @@ const routes = [
         name: 'attachments',
         component: () => import('../views/AttachmentManage.vue'),
         meta: { title: '附件管理' }
+      },
+      {
+        path: 'activities',
+        name: 'activities',
+        component: () => import('../views/ActivityLog.vue'),
+        meta: { title: '操作日志' }
       }
     ]
   },

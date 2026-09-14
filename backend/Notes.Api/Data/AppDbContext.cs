@@ -16,6 +16,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NoteTag> NoteTags => Set<NoteTag>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<NoteVersion> NoteVersions => Set<NoteVersion>();
+    public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -68,5 +69,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         });
 
         builder.Entity<Tag>().HasIndex(t => t.UserId);
+
+        // 行为日志：不设外键（用户删除后日志保留）；按用户/时间、时间、行为类型建索引
+        builder.Entity<ActivityLog>(b =>
+        {
+            b.HasIndex(a => new { a.UserId, a.CreatedAt });
+            b.HasIndex(a => a.CreatedAt);
+            b.HasIndex(a => a.Action);
+        });
     }
 }

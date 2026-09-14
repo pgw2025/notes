@@ -95,6 +95,9 @@ public class AdminUsersController : ControllerBase
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound();
 
+        // 行为日志：记录被操作用户名快照（供 Filter 读取）
+        HttpContext.Items["Activity:TargetUserName"] = user.UserName;
+
         // 避免序列化问题：Identity 序列化 lockoutEnd 需要 Set（true）
         await _userManager.SetLockoutEnabledAsync(user, true);
 
@@ -114,6 +117,9 @@ public class AdminUsersController : ControllerBase
     {
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound();
+
+        // 行为日志：记录被操作用户名快照（供 Filter 读取）
+        HttpContext.Items["Activity:TargetUserName"] = user.UserName;
 
         // 校验强度由 Identity 规则把关（长度≥6 等）
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
@@ -144,6 +150,9 @@ public class AdminUsersController : ControllerBase
 
         if (await _userManager.IsInRoleAsync(user, "Admin"))
             return BadRequest(new { message = "不能删除管理员账号" });
+
+        // 行为日志：记录被删用户名快照（删除后无法再查，须在删除前采集）
+        HttpContext.Items["Activity:TargetUserName"] = user.UserName;
 
         // 1. 载入该用户所有笔记及附件，用于清理物理文件与定位 NoteVersion
         var notes = await _db.Notes

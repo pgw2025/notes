@@ -45,6 +45,10 @@
             <el-icon><Paperclip /></el-icon>
             <span>附件管理</span>
           </el-menu-item>
+          <el-menu-item index="/activities">
+            <el-icon><DataLine /></el-icon>
+            <span>操作日志</span>
+          </el-menu-item>
         </el-menu>
       </div>
 
@@ -309,7 +313,8 @@ const navItems = [
   { path: '/notes', title: '笔记管理', icon: 'Notebook' },
   { path: '/categories', title: '分类管理', icon: 'FolderOpened' },
   { path: '/tags', title: '标签管理', icon: 'PriceTag' },
-  { path: '/attachments', title: '附件管理', icon: 'Paperclip' }
+  { path: '/attachments', title: '附件管理', icon: 'Paperclip' },
+  { path: '/activities', title: '操作日志', icon: 'DataLine' }
 ]
 
 function handleCommand(cmd) {

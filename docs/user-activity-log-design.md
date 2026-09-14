@@ -12,7 +12,7 @@
 
 | 需求 | 对应行为 | 说明 |
 |---|---|---|
-| 谁什么时间登录了 | 登录记录 | 登录成功 / 登录失败（可选）/ 登出 |
+| 谁什么时间登录了 | 登录记录 | 登录成功 / 登录失败（区分密码错、账号不存在、被禁用）/ 登出 |
 | 什么时间修改了什么 | 操作记录 | 笔记增删改、版本恢复、置顶、分类/标签管理、资料修改、附件上传删除、管理员操作 |
 | 浏览了哪个笔记 | 浏览记录 | 打开笔记详情（GET /notes/{id}），需防刷去重 |
 
@@ -66,12 +66,13 @@
 public class ActivityLog
 {
     public long Id { get; set; }                      // bigint 自增
-    public string UserId { get; set; }                // Identity 用户 Id
+    public string UserId { get; set; }                // Identity 用户 Id（登录失败可空）
+    public string? UserName { get; set; }             // 用户名快照（入队瞬间采集，用户被删后仍可读）
     public ActivityAction Action { get; set; }        // 行为类型（int 枚举存储）
     public ActivityEntity EntityType { get; set; }    // None/Note/Category/Tag/Attachment/User/Profile
     public string? EntityId { get; set; }             // 实体 Id（字符串兼容 Identity string Id）
     public string? EntityTitle { get; set; }          // 实体名称快照（删除后仍可读）
-    public string? Detail { get; set; }               // JSON 扩展字段（如旧标题→新标题、搜索词）
+    public string? Detail { get; set; }               // JSON 扩展字段（如旧标题→新标题、搜索词、失败原因）
     public string? Ip { get; set; }                   // 客户端 IP（X-Forwarded-For 优先）
     public string? UserAgent { get; set; }            // 截断至 300 字符
     public DateTime CreatedAt { get; set; }           // UTC
@@ -81,6 +82,8 @@ public class ActivityLog
 索引：`(UserId, CreatedAt)`、`(CreatedAt)`、`(Action)`。
 关联：UserId 不设外键强删联动（用户被删后日志保留，显示「已注销用户」），**见决策点 6**。
 
+> **关键约定**：`UserName` 快照必须在 **Filter 入队瞬间**采集（从 JWT Claim `Name`/`display_name` 或内存查用户），绝不能等后台落库时再查——否则管理员删除用户后，该用户最后几条日志会丢名字。
+
 ### 决策点 3：记录范围清单
 
 **记录**（✅ 默认开启 / ⭕ 可选 / ❌ 不记）：
@@ -88,7 +91,9 @@ public class ActivityLog
 | 行为 | Action 枚举 | 默认 |
 |---|---|---|
 | 登录成功 | `Login` | ✅ |
-| 登录失败（含账号被禁用被拒） | `LoginFailed` | ⭕ 有安全排查价值，建议开 |
+| 登录失败（密码错误） | `LoginFailed` | ⭕ 有安全排查价值，建议开 |
+| 登录失败（账号不存在） | `LoginFailed`（Detail 标 `reason=account_not_found`） | ⭕ |
+| 登录被拒（账号被禁用） | `LoginDenied` | ✅ 独立归类，避免误导成「密码错误」 |
 | 登出 | `Logout` | ✅ |
 | 笔记：新建 / 修改 / 删除 | `NoteCreate` / `NoteUpdate` / `NoteDelete` | ✅ |
 | 笔记：版本恢复 | `NoteRestore` | ✅ |
@@ -103,7 +108,16 @@ public class ActivityLog
 | token 自动续期 refresh | — | ❌ 噪音 |
 | 列表/时间线等只读接口 | — | ❌ 噪音 |
 
-**浏览去重规则（防刷）**：同一用户 + 同一笔记，**10 分钟内**重复打开只记一条（内存 `ConcurrentDictionary` 时间戳，进程级即可，重启丢失可接受）。⭕ 去重窗口默认 10 分钟，可改。
+> **登录失败原因细分（重要）**：`AuthController.Login` 当前先查账号（查不到 → 账号不存在）、再判断 `IsLockedOutAsync`（被禁用）、最后 `CheckPasswordAsync`（密码错）。三种失败原因不同，若统一记「登录失败」会让后台看到一堆「密码错误」而误判为暴力破解。故：
+> - 账号不存在 → `LoginFailed` + Detail `reason=account_not_found`；
+> - 密码错误 → `LoginFailed` + Detail `reason=bad_password`；
+> - 被禁用 → 单独枚举 `LoginDenied`（不混入失败）。
+>
+> 三种都在登录接口的对应分支里由 Filter 通过 `HttpContext.Items` 传递（见技术细节第 4 条），**不修改 AuthController 的返回逻辑**。
+
+**浏览去重规则（防刷）**：同一用户 + 同一笔记，**10 分钟内**重复打开只记一条（内存 `ConcurrentDictionary<(UserId,EntityId), DateTime>` 时间戳，进程级即可，重启丢失可接受）。去重键含 UserId 与 EntityId；**未命中（404）不记**，避免用不存在的 id 刷日志。⭕ 去重窗口默认 10 分钟，可改。
+
+> **前后台区分（重要）**：管理后台 `Admin*Controller` 的「查看/浏览」类只读动作（如 AdminNotesController.Get 看笔记详情）**不记浏览日志**，只有普通用户端（`NotesController` 等）才记 `NoteView`。判定方式：Filter 按 Controller 命名空间或路由前缀 `api/admin/` 区分。后台只记「写操作」（禁用/重置密码/删用户/删笔记等），避免管理员翻看笔记也产生 NoteView 噪音。
 
 ### 决策点 4：写入方式与性能 —— 推荐 B（异步队列）
 
@@ -163,12 +177,16 @@ DELETE /api/admin/activities  → 手动清空（可选）
 
 ## 四、技术细节与风险
 
-1. **IP 获取（重要）**：生产环境走 Nginx 反代，需在 `Program.cs` 启用 `ForwardedHeaders` 中间件，否则记到的 IP 全是 `127.0.0.1`。当前项目未配置，本次需一并加上（属于本功能必要配套，改动约 3 行）。
+1. **IP 获取（重要，需端到端打通）**：生产环境走 Nginx 反代，要拿到真实 IP 必须**两端配合**：
+   - Nginx 端：`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`（实施前先确认 `deploy/` 里现有 nginx 配置是否已含此头）。
+   - 后端端：`Program.cs` 启用 `UseForwardedHeaders` 中间件（`ForwardedHeaders.XForwardedFor | XForwardedProto`）。
+   - 缺任意一端都会导致记到 `127.0.0.1` 或 `::1`。**实施 Phase 1 前需先核对 nginx 配置，若缺失一并补上。**
 2. **UserAgent**：取 `Request.Headers.UserAgent`，截断 300 字符。
-3. **Migration**：新增实体 + `dotnet ef migrations add AddActivityLogs`；项目启动自动 Migrate，部署即建表。
-4. **登录失败记录**：`LoginFailed` 时 UserId 可能为空（账号不存在），此时 UserId 存空串、Detail 存尝试的账号名（脱敏只存账号本身，不存密码）。
-5. **浏览记录的位置**：在 Filter 记 `NoteView` 时需查一次笔记标题（Filter 内 scoped 注入 DbContext），注意用 `AsNoTracking`。
+3. **Migration**：新增实体 + `dotnet ef migrations add AddActivityLogs`；项目启动自动 Migrate，部署即建表。索引随迁移一起创建（新建空表，无锁表风险），**不要事后补索引**。
+4. **登录失败记录与 UserId 为空**：`LoginFailed` 时账号不存在 → UserId 存空串、`UserName` 存尝试的账号名（脱敏，只存账号本身，**绝不存密码**）。实现上：AuthController 三个分支把「失败原因 / 尝试账号」写入 `HttpContext.Items`，Filter 读取后生成日志，**不改 AuthController 返回值与判断逻辑**。
+5. **浏览记录的位置与标题快照**：在 Filter 记 `NoteView` 时需查一次笔记标题（Filter 内 scoped 注入 DbContext，`AsNoTracking`）。**必须带 `UserId == 当前用户` 条件**，只有确属本人且查得到才记；404 / 越权访问不记（与去重规则呼应）。
 6. **日志表不参与业务事务**：独立落库，绝不影响业务请求结果。
+7. **后台管理员的「浏览」不记**：`Admin*Controller` 的 GET（如 AdminNotesController.Get）不产生 NoteView，只记写操作。见决策点 3 的「前后台区分」。
 
 ## 五、改动清单预估
 
@@ -177,9 +195,10 @@ DELETE /api/admin/activities  → 手动清空（可选）
 | 后端-模型 | `Models/ActivityLog.cs`、`Models/ActivityEnums.cs`（新） | 新增 |
 | 后端-数据 | `AppDbContext` 注册 DbSet + 索引配置 | 小改 |
 | 后端-服务 | `Services/ActivityLogger.cs`（Channel + BackgroundService）（新） | 新增 |
-| 后端-过滤 | `Infrastructure/ActivityLogFilter.cs`（含路由映射表）（新）+ `Program.cs` 注册 filter 与 ForwardedHeaders | 新增+小改 |
+| 后端-过滤 | `Infrastructure/ActivityLogFilter.cs`（含路由映射表 + 前后台区分 + 去重 + IP/UA 采集）（新）+ `Program.cs` 注册 filter 与 ForwardedHeaders | 新增+小改 |
 | 后端-接口 | `Controllers/Admin/AdminActivitiesController.cs`（新） | 新增 |
 | 后端-迁移 | `Migrations/AddActivityLogs`（生成） | 生成 |
+| 部署-nginx | 确认/补充 `X-Forwarded-For` 转发头（若缺失） | 可能小改 |
 | 前端-admin | `views/ActivityLog.vue`（新）、`router` 加路由、`AdminLayout` 侧边栏加菜单、`UserManage.vue` 加「记录」入口、`api/http.js` 不变 | 新增+小改 |
 
 实施拆分（审批通过后按 Phase 提交）：
@@ -195,5 +214,13 @@ DELETE /api/admin/activities  → 手动清空（可选）
 3. 记录范围：默认清单 OK？登录失败 ⭕ 和搜索词 ⭕ 开不开？浏览去重窗口 10 分钟 OK？
 4. 写入方式：**B 异步队列**（推荐）还是求简单用 A 同步？
 5. 保留策略：90 天自动清理（A）还是永久保留（B）？
-6. 删除用户后日志保留 + 冗余 UserName 快照列（推荐）？
+6. 删除用户后日志保留 + 冗余 UserName 快照列（推荐）？**快照在入队瞬间采集。**
 7. 前端入口：新增独立「操作日志」页 + 用户管理页「记录」按钮跳转，OK？
+
+## 七、评审补充结论（2026-09-14 已回填）
+
+1. **登录失败细分**：拆「密码错 / 账号不存在 / 被禁用」三种，被禁用单独 `LoginDenied` 枚举，避免误导。
+2. **UserName 快照入队即采**：不等到异步落库时查，防删除用户后日志丢名。
+3. **前后台区分**：管理后台只记写操作，不记浏览；`api/admin/` 前缀判定。
+4. **IP 端到端**：Nginx `X-Forwarded-For` 头 + 后端 `UseForwardedHeaders` 缺一不可，Phase 1 前先核 nginx。
+5. **浏览去重与越权**：去重键 `(UserId,EntityId)`，404/越权不记；标题快照查询带 `UserId` 条件。

@@ -87,6 +87,13 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 
+// ===== 行为日志 =====
+// ActivityLogger 为单例（内部用 Channel + 后台消费循环，跨请求常驻），
+// 落库时通过 IServiceScopeFactory 创建独立作用域拿 DbContext。
+builder.Services.AddSingleton<ActivityLogger>();
+builder.Services.AddHostedService<ActivityLogHostedService>();
+builder.Services.AddScoped<ActivityLogFilter>();
+
 // ===== CORS (允许前端开发服务器访问) =====
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:5173", "http://localhost:3000" };
@@ -111,6 +118,11 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(new JsonDateTimeUtcConverter());
+    })
+    .AddMvcOptions(options =>
+    {
+        // 全局注册行为日志过滤器（Controller+Action 映射表判定记录范围）
+        options.Filters.Add<ActivityLogFilter>();
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -149,6 +161,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// 反向代理头：生产走 Nginx，需信任 X-Forwarded-For 才能记录真实客户端 IP
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
 
 app.UseCors();
 app.UseAuthentication();

@@ -89,15 +89,34 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByNameAsync(dto.Account)
             ?? await _userManager.FindByEmailAsync(dto.Account);
         if (user == null)
+        {
+            HttpContext.Items["Activity:LoginResult"] = "failed";
+            HttpContext.Items["Activity:LoginReason"] = "account_not_found";
+            HttpContext.Items["Activity:AttemptAccount"] = dto.Account;
             return Unauthorized(new { message = "账号或密码错误" });
+        }
 
         // 账号被禁用（管理员设置 LockoutEnd）时拒绝登录
         if (await _userManager.IsLockedOutAsync(user))
+        {
+            HttpContext.Items["Activity:LoginResult"] = "denied";
+            HttpContext.Items["Activity:LoginReason"] = "locked_out";
+            HttpContext.Items["Activity:AttemptAccount"] = dto.Account;
             return Unauthorized(new { message = "账号已被禁用，请联系管理员" });
+        }
 
         var valid = await _userManager.CheckPasswordAsync(user, dto.Password);
         if (!valid)
+        {
+            HttpContext.Items["Activity:LoginResult"] = "failed";
+            HttpContext.Items["Activity:LoginReason"] = "bad_password";
+            HttpContext.Items["Activity:AttemptAccount"] = dto.Account;
             return Unauthorized(new { message = "账号或密码错误" });
+        }
+
+        HttpContext.Items["Activity:LoginResult"] = "success";
+        HttpContext.Items["Activity:LoginUserId"] = user.Id;
+        HttpContext.Items["Activity:LoginUserName"] = user.UserName;
 
         var (accessToken, refreshToken) = await _tokenService.CreateTokenPair(user);
         return Ok(new AuthResponseDto(accessToken, refreshToken, user.Email!, user.DisplayName));

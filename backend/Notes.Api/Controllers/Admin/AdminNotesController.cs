@@ -152,6 +152,9 @@ public class AdminNotesController : ControllerBase
 
         if (note == null) return NotFound();
 
+        // 行为日志：记录被删笔记标题快照（删除后无法再查，须在删除前采集）
+        HttpContext.Items["Activity:TargetNoteTitle"] = note.Title;
+
         // 清理附件物理文件
         foreach (var att in note.Attachments)
         {

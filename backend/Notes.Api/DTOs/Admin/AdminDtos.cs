@@ -77,6 +77,8 @@ public record AdminCategoryDto(
     string? UserEmail,
     string? UserDisplayName,
     int NoteCount,
+    int? ParentId,
+    string? ParentName,
     DateTime CreatedAt);
 
 public record AdminCategoryListResponseDto(List<AdminCategoryDto> Items, int Total);
@@ -115,3 +117,20 @@ public record AdminOrphanFileDto(
     DateTime LastWriteTimeUtc);
 
 public record AdminOrphanScanResponseDto(List<AdminOrphanFileDto> Items, int Count, long TotalSize);
+
+/// <summary>行为日志列表项（UserName 用快照列，用户删除后仍可读）</summary>
+public record AdminActivityDto(
+    long Id,
+    string UserId,
+    string? UserName,
+    int Action,
+    int EntityType,
+    string? EntityId,
+    string? EntityTitle,
+    string? Detail,
+    string? Ip,
+    string? UserAgent,
+    DateTime CreatedAt);
+
+/// <summary>行为日志分页响应</summary>
+public record AdminActivityListResponseDto(List<AdminActivityDto> Items, int Total);
