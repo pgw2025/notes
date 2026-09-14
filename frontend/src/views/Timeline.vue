@@ -47,7 +47,7 @@
         <div class="filter-title">按分类筛选</div>
         <van-checkbox-group v-model="activeCategoryIds" direction="horizontal">
           <van-checkbox
-            v-for="c in categories"
+            v-for="c in flatCategories"
             :key="c.id"
             :name="c.id"
             shape="square"
@@ -189,9 +189,10 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, nextTick, watch } from 'vue'
+import { reactive, ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../api/http'
+import { flattenCategories } from '../utils/categoryTree'
 
 const router = useRouter()
 
@@ -208,6 +209,9 @@ const activeCategoryIds = ref([])
 const activeTagIds = ref([])
 const categories = ref([])
 const tags = ref([])
+
+// 扁平化分类（树形结构 → 一维，用于筛选 checkbox）
+const flatCategories = computed(() => flattenCategories(categories.value).map((c) => ({ id: c.id, name: c.name })))
 
 const filterOpen = reactive({ cats: false, tags: false, dates: false })
 const showFromPicker = ref(false)

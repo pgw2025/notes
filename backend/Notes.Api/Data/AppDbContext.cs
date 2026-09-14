@@ -56,7 +56,17 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        builder.Entity<Category>().HasIndex(c => c.UserId);
+        builder.Entity<Category>(b =>
+        {
+            b.HasIndex(c => c.UserId);
+
+            // 自引用：父分类 + 子分类集合
+            b.HasOne(c => c.Parent)
+                .WithMany(c => c.Children)
+                .HasForeignKey(c => c.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<Tag>().HasIndex(t => t.UserId);
     }
 }

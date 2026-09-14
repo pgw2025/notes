@@ -55,50 +55,55 @@
         </button>
       </div>
 
-      <!-- 分类选项网格 -->
+      <!-- 分类选项：树形（无搜索时）或扁平列表（搜索时） -->
       <div class="categories-content">
-        <div class="category-grid">
-          <!-- 无分类选项 -->
-          <div
-            class="cat-option-card"
-            :class="{ active: modelValue === null || modelValue === undefined }"
-            @click="selectCategory(null)"
-          >
-            <div class="cat-card-top">
-              <span class="cat-icon">📂</span>
-              <div v-if="modelValue === null || modelValue === undefined" class="check-badge">
-                <van-icon name="success" size="12" />
-              </div>
-            </div>
-            <div class="cat-card-info">
-              <div class="cat-name">无分类</div>
-              <div class="cat-count">默认未分类</div>
-            </div>
-          </div>
-
-          <!-- 各分类选项 -->
-          <div
-            v-for="c in filteredCategories"
-            :key="c.id"
-            class="cat-option-card"
-            :class="{ active: modelValue === c.id }"
-            @click="selectCategory(c.id)"
-          >
-            <div class="cat-card-top">
-              <span class="cat-icon">📁</span>
-              <div v-if="modelValue === c.id" class="check-badge">
-                <van-icon name="success" size="12" />
-              </div>
-            </div>
-            <div class="cat-card-info">
-              <div class="cat-name" :title="c.name">{{ c.name }}</div>
-              <div class="cat-count">{{ c.noteCount || 0 }} 篇笔记</div>
-            </div>
+        <!-- 无分类选项 -->
+        <div
+          class="cat-option-row"
+          :class="{ active: modelValue === null || modelValue === undefined }"
+          @click="selectCategory(null)"
+        >
+          <span class="cat-icon">📂</span>
+          <span class="cat-row-name">无分类</span>
+          <span class="cat-row-count">默认未分类</span>
+          <div v-if="modelValue === null || modelValue === undefined" class="check-badge">
+            <van-icon name="success" size="12" />
           </div>
         </div>
 
+        <!-- 有搜索词：扁平匹配结果 -->
+        <template v-if="trimmedQuery">
+          <div
+            v-for="c in filteredFlatCategories"
+            :key="c.id"
+            class="cat-option-row"
+            :class="{ active: modelValue === c.id }"
+            :style="{ paddingLeft: 12 + c.depth * 16 + 'px' }"
+            @click="selectCategory(c.id)"
+          >
+            <span class="cat-icon">📁</span>
+            <span class="cat-row-name" :title="c.path">{{ c.name }}</span>
+            <span class="cat-row-count">{{ c.noteCount || 0 }} 篇</span>
+            <div v-if="modelValue === c.id" class="check-badge">
+              <van-icon name="success" size="12" />
+            </div>
+          </div>
+        </template>
+
+        <!-- 无搜索词：树形展示 -->
+        <template v-else>
+          <CategorySelectNode
+            v-for="c in props.categories"
+            :key="c.id"
+            :node="c"
+            :depth="0"
+            :model-value="modelValue"
+            @select="selectCategory"
+          />
+        </template>
+
         <!-- 搜索无结果且不可创建时的空状态 -->
-        <div v-if="filteredCategories.length === 0 && !canQuickCreate" class="empty-results">
+        <div v-if="trimmedQuery && filteredFlatCategories.length === 0 && !canQuickCreate" class="empty-results">
           <p>未找到匹配的分类</p>
         </div>
       </div>
@@ -121,7 +126,9 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { showToast } from 'vant'
 import http from '../api/http'
 import { useResponsive } from '../composables/useResponsive'
+import { flattenCategories, findCategoryById, getCategoryPath } from '../utils/categoryTree'
 import ResponsivePopover from './ResponsivePopover.vue'
+import CategorySelectNode from './CategorySelectNode.vue'
 
 const props = defineProps({
   show: {
@@ -151,16 +158,26 @@ const searchInputRef = ref(null)
 
 const trimmedQuery = computed(() => searchQuery.value.trim())
 
-const filteredCategories = computed(() => {
-  if (!trimmedQuery.value) return props.categories
+// 扁平化的分类列表（用于搜索匹配），附带 depth 和 path
+const flatCategories = computed(() =>
+  flattenCategories(props.categories).map((c) => ({
+    ...c,
+    path: getCategoryPath(props.categories, c.id)
+  }))
+)
+
+const filteredFlatCategories = computed(() => {
+  if (!trimmedQuery.value) return flatCategories.value
   const q = trimmedQuery.value.toLowerCase()
-  return props.categories.filter((c) => c.name.toLowerCase().includes(q))
+  return flatCategories.value.filter(
+    (c) => c.name.toLowerCase().includes(q) || (c.path && c.path.toLowerCase().includes(q))
+  )
 })
 
 const exactMatchExists = computed(() => {
   if (!trimmedQuery.value) return false
   const q = trimmedQuery.value.toLowerCase()
-  return props.categories.some((c) => c.name.toLowerCase() === q)
+  return flatCategories.value.some((c) => c.name.toLowerCase() === q)
 })
 
 const canQuickCreate = computed(() => {
@@ -169,8 +186,8 @@ const canQuickCreate = computed(() => {
 
 const currentCategoryName = computed(() => {
   if (props.modelValue === null || props.modelValue === undefined) return '无分类'
-  const found = props.categories.find((c) => c.id === props.modelValue)
-  return found ? found.name : '无分类'
+  const found = findCategoryById(props.categories, props.modelValue)
+  return found ? getCategoryPath(props.categories, props.modelValue) || found.name : '无分类'
 })
 
 watch(
@@ -198,7 +215,7 @@ async function handleQuickCreate() {
   if (!name) return
 
   // 如果已存在则直接选中
-  const exist = props.categories.find((c) => c.name.toLowerCase() === name.toLowerCase())
+  const exist = flatCategories.value.find((c) => c.name.toLowerCase() === name.toLowerCase())
   if (exist) {
     emit('update:modelValue', exist.id)
     searchQuery.value = ''
@@ -215,7 +232,7 @@ async function handleQuickCreate() {
     // 如果返回数据无 id，重新拉取列表以兜底
     if (!record.id) {
       const fresh = await http.get('/categories')
-      const just = fresh.find((c) => c.name === name)
+      const just = flattenCategories(fresh).find((c) => c.name === name)
       if (just) {
         record.id = just.id
         record.noteCount = just.noteCount ?? 0
@@ -367,56 +384,59 @@ async function handleQuickCreate() {
 }
 
 .categories-content {
-  padding: 16px 20px;
+  padding: 12px 20px;
   overflow-y: auto;
   min-height: 180px;
   max-height: 48vh;
 }
 
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-  gap: 12px;
-}
-
-.cat-option-card {
+.cat-option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   background: var(--surface-2);
   border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
+  border-radius: 10px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 80px;
   transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  margin-bottom: 6px;
 }
 
-.cat-option-card:hover {
-  transform: translateY(-2px);
+.cat-option-row:hover {
   border-color: var(--color-primary);
   box-shadow: var(--shadow-xs);
 }
 
-.cat-option-card.active {
+.cat-option-row.active {
   background: rgba(59, 130, 246, 0.08);
   border-color: var(--color-primary);
 }
 
-:global(body.dark) .cat-option-card.active {
+:global(body.dark) .cat-option-row.active {
   background: rgba(56, 189, 248, 0.12);
 }
 
-.cat-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+.cat-icon {
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
-.cat-icon {
-  font-size: 20px;
+.cat-row-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-row-count {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .check-badge {
@@ -428,21 +448,7 @@ async function handleQuickCreate() {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.cat-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-bottom: 2px;
-}
-
-.cat-count {
-  font-size: 11.5px;
-  color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .empty-results {
@@ -505,18 +511,14 @@ async function handleQuickCreate() {
 
   .cat-modal.is-popover .categories-content {
     max-height: 260px;
-    padding: 0 14px 10px;
+    padding: 8px 14px 10px;
     overflow-y: auto;
   }
 
-  .cat-modal.is-popover .category-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-
-  .cat-modal.is-popover .cat-option-card {
-    padding: 9px 10px;
+  .cat-modal.is-popover .cat-option-row {
+    padding: 8px 10px;
     border-radius: 8px;
+    margin-bottom: 4px;
   }
 
   .cat-modal.is-popover .modal-footer {

@@ -51,7 +51,11 @@ public class NotesController : ControllerBase
         if (uncategorizedOnly == true)
             query = query.Where(n => !n.CategoryId.HasValue);
         else if (categoryId.HasValue)
-            query = query.Where(n => n.CategoryId == categoryId);
+        {
+            // 父分类筛选时包含所有子孙分类的笔记
+            var descendantIds = await GetCategoryAndDescendantIds(categoryId.Value);
+            query = query.Where(n => n.CategoryId.HasValue && descendantIds.Contains(n.CategoryId.Value));
+        }
 
         var totalCount = await query.CountAsync();
 
@@ -617,5 +621,33 @@ public class NotesController : ControllerBase
         if (string.IsNullOrEmpty(content)) return string.Empty;
         var text = content.Length > maxLength ? content[..maxLength] + "…" : content;
         return text.Replace("\n", " ").Replace("\r", "");
+    }
+
+    /// <summary>返回某分类及其所有子孙分类的 Id 集合（用于筛选时包含子分类）</summary>
+    private async Task<HashSet<int>> GetCategoryAndDescendantIds(int id)
+    {
+        var all = await _db.Categories
+            .Where(c => c.UserId == UserId)
+            .Select(c => new { c.Id, c.ParentId })
+            .ToListAsync();
+
+        var childrenMap = all
+            .Where(c => c.ParentId.HasValue)
+            .GroupBy(c => c.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(c => c.Id).ToList());
+
+        var result = new HashSet<int> { id };
+        var stack = new Stack<int>();
+        stack.Push(id);
+
+        while (stack.Count > 0)
+        {
+            var cur = stack.Pop();
+            if (!childrenMap.TryGetValue(cur, out var next)) continue;
+            foreach (var cid in next)
+                if (result.Add(cid))
+                    stack.Push(cid);
+        }
+        return result;
     }
 }

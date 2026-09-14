@@ -1,5 +1,6 @@
 import JSZip from 'jszip'
 import http from '../api/http'
+import { flattenCategories } from './categoryTree'
 
 // ===================== 辅助函数 =====================
 
@@ -308,7 +309,9 @@ function parseMarkdownNote(text, filename) {
 async function resolveCategoryId(categoryName) {
   if (!categoryName) return null
   const categories = await http.get('/categories')
-  const found = categories.find((c) => c.name === categoryName)
+  // 树形结构：扁平化后按名称查找
+  const flat = flattenCategories(categories)
+  const found = flat.find((c) => c.name === categoryName)
   if (found) return found.id
 
   // 创建新分类

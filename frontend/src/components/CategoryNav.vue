@@ -18,19 +18,15 @@
       <span class="cat-name">未分类</span>
     </div>
 
-    <div
+    <!-- 树形分类导航（递归渲染子分类） -->
+    <CategoryNavItem
       v-for="c in categories"
       :key="c.id"
-      class="cat-item"
-      :class="{ active: modelValue === c.id, 'is-empty': c.noteCount === 0 }"
-      @click="selectCategory(c.id)"
-    >
-      <div class="cat-icon-wrap">
-        <span class="cat-bullet"></span>
-      </div>
-      <span class="cat-name">{{ c.name }}</span>
-      <span class="cat-count">{{ c.noteCount }}</span>
-    </div>
+      :node="c"
+      :depth="0"
+      :model-value="modelValue"
+      @select="selectCategory"
+    />
 
     <!-- 侧栏标签展示与筛选区 -->
     <div v-if="tags && tags.length > 0" class="tags-divider-wrap">
@@ -61,6 +57,8 @@
 </template>
 
 <script setup>
+import CategoryNavItem from './CategoryNavItem.vue'
+
 const props = defineProps({
   categories: { type: Array, required: true },
   tags: { type: Array, default: () => [] },
@@ -166,14 +164,6 @@ function selectTag(id) {
   font-size: 13px;
 }
 
-.cat-bullet {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-  opacity: 0.6;
-}
-
 .cat-item:hover {
   background: var(--surface-2);
   color: var(--text-primary);
@@ -188,12 +178,6 @@ function selectTag(id) {
 :global(body.dark) .cat-item.active {
   background: rgba(56, 189, 248, 0.16);
   color: var(--color-primary);
-}
-
-.cat-item.active .cat-bullet {
-  background: var(--color-primary);
-  opacity: 1;
-  transform: scale(1.3);
 }
 
 .cat-item.active .cat-icon-wrap {

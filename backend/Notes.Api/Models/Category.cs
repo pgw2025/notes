@@ -15,5 +15,12 @@ public class Category
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>父分类 Id，null 表示顶级分类（自引用树，支持无限层级）</summary>
+    public int? ParentId { get; set; }
+
+    public Category? Parent { get; set; }
+
+    public ICollection<Category> Children { get; set; } = new List<Category>();
+
     public ICollection<Note> Notes { get; set; } = new List<Note>();
 }

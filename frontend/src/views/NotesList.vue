@@ -183,6 +183,7 @@ import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
 import { formatTime } from '../utils/format'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
+import { findCategoryById } from '../utils/categoryTree'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import CategoryNav from '../components/CategoryNav.vue'
@@ -230,7 +231,7 @@ const currentCategoryName = computed(() => {
     return foundTag ? `#${foundTag.name}` : '标签笔记'
   }
   if (activeCategoryId.value == null) return '未分类'
-  return categories.value.find((c) => c.id === activeCategoryId.value)?.name ?? '笔记'
+  return findCategoryById(categories.value, activeCategoryId.value)?.name ?? '笔记'
 })
 
 // 空态文案：按视图区分
@@ -306,8 +307,9 @@ function sortNotesInPlace() {
 
 async function loadCategories() {
   try {
-    // 常用分类（笔记数多）排前面，便于快速定位
-    categories.value = (await http.get('/categories')).sort((a, b) => b.noteCount - a.noteCount)
+    // 常用分类（笔记数多）排前面，便于快速定位（仅对顶层排序，保留树结构）
+    const cats = await http.get('/categories')
+    categories.value = (cats || []).sort((a, b) => b.noteCount - a.noteCount)
   } catch {
     // 忽略
   }
@@ -438,7 +440,7 @@ onMounted(async () => {
   const qCatId = Number(route.query.categoryId)
   const qTagId = Number(route.query.tagId)
 
-  if (qCatId && categories.value.some((c) => c.id === qCatId)) {
+  if (qCatId && findCategoryById(categories.value, qCatId)) {
     activeCategoryId.value = qCatId
   } else if (qTagId && tags.value.some((t) => t.id === qTagId)) {
     activeTagId.value = qTagId

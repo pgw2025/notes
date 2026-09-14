@@ -394,6 +394,7 @@ import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { useTagStore } from '../stores/tag'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
+import { flattenCategories, findCategoryById } from '../utils/categoryTree'
 
 const route = useRoute()
 const router = useRouter()
@@ -723,7 +724,7 @@ const toolbarButtons = computed(() => [
 
 const categoryColumns = computed(() => [
   { text: '无分类', value: null },
-  ...categories.value.map((c) => ({ text: c.name, value: c.id }))
+  ...flattenCategories(categories.value).map((c) => ({ text: c.name, value: c.id }))
 ])
 // Picker 默认选中当前分类（方案A补齐：van-picker default-index）
 const categoryDefaultIndex = computed(() => {
@@ -733,11 +734,11 @@ const categoryDefaultIndex = computed(() => {
 })
 
 const selectedCategoryName = computed(() => {
-  const c = categories.value.find((x) => x.id === form.categoryId)
+  const c = findCategoryById(categories.value, form.categoryId)
   return c?.name || ''
 })
 // 方案A：已选分类对象（用于 Chip 展示，null 则渲染 ＋选分类 占位）
-const selectedCategory = computed(() => categories.value.find((x) => x.id === form.categoryId) || null)
+const selectedCategory = computed(() => findCategoryById(categories.value, form.categoryId) || null)
 
 const selectedTagNames = computed(() => {
   const names = tags.value
@@ -1284,6 +1285,10 @@ function onKeyDown(e) {
   }
 }
 
+async function loadCategories() {
+  categories.value = await http.get('/categories')
+}
+
 async function loadData() {
   const [cats, tgs] = await Promise.all([http.get('/categories'), http.get('/tags')])
   categories.value = cats
@@ -1316,8 +1321,9 @@ async function loadData() {
 }
 
 function onCategoryCreated(cat) {
-  if (cat && !categories.value.some((c) => c.id === cat.id)) {
-    categories.value.push(cat)
+  // 创建后简单刷新分类树（树形结构下 push 不适用）
+  if (cat && cat.id) {
+    loadCategories()
   }
 }
 
@@ -1388,9 +1394,10 @@ async function createTagInline() {
 async function createCategoryInline() {
   const name = newCategoryName.value.trim()
   if (!name) { showToast('请输入分类名'); return }
-  const exist = categories.value.find((c) => c.name.toLowerCase() === name.toLowerCase())
-  if (exist) {
-    form.categoryId = exist.id
+  const flat = flattenCategories(categories.value)
+  const existCat = flat.find((c) => c.name.toLowerCase() === name.toLowerCase())
+  if (existCat) {
+    form.categoryId = existCat.id
     newCategoryName.value = ''
     showToast('已选择')
     return
@@ -1400,14 +1407,11 @@ async function createCategoryInline() {
     const created = await http.post('/categories', { name })
     const record = created && created.id ? created : null
     let finalId = record?.id
+    await loadCategories()
     if (!finalId) {
-      // 后端没返回 id：刷新拿真实 id
-      const fresh = await http.get('/categories')
-      categories.value = fresh
-      const just = fresh.find((c) => c.name === name)
+      const freshFlat = flattenCategories(categories.value)
+      const just = freshFlat.find((c) => c.name === name)
       if (just) finalId = just.id
-    } else {
-      categories.value.push(record)
     }
     if (finalId) form.categoryId = finalId
     newCategoryName.value = ''

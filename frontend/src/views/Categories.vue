@@ -17,35 +17,19 @@
         </van-button>
       </div>
 
-      <div v-if="list.length" class="category-grid">
-        <div
+      <div v-if="list.length" class="category-tree">
+        <CategoryNode
           v-for="c in list"
           :key="c.id"
-          class="cat-card"
-          @click="goNotes(c.id)"
-        >
-          <div class="cat-card-header">
-            <div class="cat-card-icon">📁</div>
-            <div class="cat-card-actions" @click.stop>
-              <button class="cat-btn" title="编辑" @click="onEdit(c)">
-                <van-icon name="edit" size="14" />
-              </button>
-              <button class="cat-btn btn-del" title="删除" @click="onDelete(c)">
-                <van-icon name="delete-o" size="14" />
-              </button>
-            </div>
-          </div>
-
-          <div class="cat-card-body">
-            <div class="cat-card-name">{{ c.name }}</div>
-            <div class="cat-card-count">{{ c.noteCount }} 篇笔记</div>
-          </div>
-
-          <div class="cat-card-footer">
-            <span>点击查看笔记</span>
-            <van-icon name="arrow" size="12" />
-          </div>
-        </div>
+          :node="c"
+          :depth="0"
+          :expanded="expandedIds"
+          @toggle="toggleExpand"
+          @add-child="onAddChild"
+          @edit="onEdit"
+          @delete="onDelete"
+          @open="goNotes"
+        />
       </div>
 
       <div v-else class="empty-state">
@@ -72,6 +56,10 @@
           class="form-field"
           clearable
         />
+        <div v-if="formParentId !== null && formParentId !== undefined" class="form-parent-label">
+          <span class="parent-label-text">所属父分类</span>
+          <span class="parent-label-value">{{ parentName || '无（顶级分类）' }}</span>
+        </div>
         <div class="form-actions">
           <van-button block round type="primary" :loading="submitting" @click="onSubmitForm">
             保存
@@ -83,17 +71,23 @@
 </template>
 
 <script setup>
-import { ref, onActivated, onMounted } from 'vue'
+import { ref, onActivated, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
+import { findCategoryById } from '../utils/categoryTree'
+import CategoryNode from '../components/CategoryNode.vue'
 
 const router = useRouter()
 const list = ref([])
 const showForm = ref(false)
 const formName = ref('')
+const formParentId = ref(null)
 const editing = ref(null)
 const submitting = ref(false)
+
+// 展开的子分类 id 集合（用于折叠/展开）
+const expandedIds = ref(new Set())
 
 async function load() {
   list.value = await http.get('/categories')
@@ -102,13 +96,35 @@ async function load() {
 function onAdd() {
   editing.value = null
   formName.value = ''
+  formParentId.value = null
+  showForm.value = true
+}
+
+function onAddChild(parent) {
+  editing.value = null
+  formName.value = ''
+  formParentId.value = parent.id
   showForm.value = true
 }
 
 function onEdit(c) {
   editing.value = c
   formName.value = c.name
+  formParentId.value = c.parentId ?? null
   showForm.value = true
+}
+
+const parentName = computed(() => {
+  if (formParentId.value === null || formParentId.value === undefined) return ''
+  const p = findCategoryById(list.value, formParentId.value)
+  return p ? p.name : ''
+})
+
+function toggleExpand(id) {
+  const next = new Set(expandedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedIds.value = next
 }
 
 async function onSubmitForm() {
@@ -120,14 +136,22 @@ async function onSubmitForm() {
   submitting.value = true
   try {
     if (editing.value) {
-      await http.put(`/categories/${editing.value.id}`, { name })
+      await http.put(`/categories/${editing.value.id}`, { name, parentId: formParentId.value })
       showToast('已更新')
     } else {
-      await http.post('/categories', { name })
+      await http.post('/categories', { name, parentId: formParentId.value })
       showToast('已创建')
     }
     showForm.value = false
+    // 创建/更新后自动展开父分类
+    if (formParentId.value != null) {
+      const next = new Set(expandedIds.value)
+      next.add(formParentId.value)
+      expandedIds.value = next
+    }
     await load()
+  } catch (err) {
+    showToast(err?.response?.data?.message || '操作失败')
   } finally {
     submitting.value = false
   }
@@ -140,10 +164,12 @@ async function onDelete(c) {
       message: `确定删除分类「${c.name}」吗？分类下的笔记将被移至未分类。`
     })
     await http.delete(`/categories/${c.id}`)
-    list.value = list.value.filter((x) => x.id !== c.id)
     showToast('已删除')
-  } catch {
-    // 取消
+    await load()
+  } catch (err) {
+    // 后端返回的「有子分类」错误提示
+    const msg = err?.response?.data?.message
+    if (msg) showToast(msg)
   }
 }
 
@@ -198,97 +224,10 @@ onActivated(load)
   margin: 0;
 }
 
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.cat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: var(--shadow-xs);
-  cursor: pointer;
+.category-tree {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 120px;
-  transition: all 0.2s ease;
-}
-
-.cat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  border-color: var(--color-primary);
-}
-
-.cat-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.cat-card-icon {
-  font-size: 24px;
-}
-
-.cat-card-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.cat-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  border: none;
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.cat-btn:hover {
-  background: var(--surface-3);
-  color: var(--text-primary);
-}
-
-.cat-btn.btn-del:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--color-danger);
-}
-
-.cat-card-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cat-card-count {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.cat-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
-  font-size: 11.5px;
-  color: var(--color-primary);
-  font-weight: 500;
+  gap: 6px;
 }
 
 .empty-state {
@@ -341,7 +280,27 @@ onActivated(load)
   background: var(--surface-2);
   border-radius: 8px;
   padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.form-parent-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-radius: 8px;
   margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.parent-label-text {
+  color: var(--text-secondary);
+}
+
+.parent-label-value {
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .form-actions {
@@ -355,9 +314,9 @@ onActivated(load)
     margin: 0 auto;
     padding-bottom: 32px;
   }
-  .category-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 16px;
+  .cat-content {
+    max-width: 720px;
+    margin: 0 auto;
   }
   :deep(.form-popup) {
     max-width: 480px;
