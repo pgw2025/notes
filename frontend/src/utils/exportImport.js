@@ -35,12 +35,29 @@ function timestampPrefix() {
 }
 
 /**
+ * 循环分页拉取全部笔记列表项（返回 NoteListItemDto 数组）
+ * 列表接口默认 pageSize=20，这里按 hasMore 逐页拉满，避免漏掉第 21 篇之后的笔记
+ */
+async function fetchAllNoteListItems() {
+  const items = []
+  const pageSize = 100 // 后端钳制上限（NotesController.cs:42），减少请求次数
+  let page = 1
+  while (true) {
+    const res = await http.get('/notes', { params: { page, pageSize } })
+    const list = Array.isArray(res) ? res : (res?.items || [])
+    items.push(...list)
+    if (!res?.hasMore || list.length === 0) break
+    page++
+  }
+  return items
+}
+
+/**
  * 获取笔记的完整数据（用于导出）
  * 列表接口返回的是 ContentPreview，需要用详情接口获取完整 Content
  */
 async function fetchFullNotes() {
-  const res = await http.get('/notes')
-  const list = Array.isArray(res) ? res : (res?.items || [])
+  const list = await fetchAllNoteListItems()
   const fullNotes = await Promise.all(
     list.map((n) => http.get(`/notes/${n.id}`))
   )
@@ -325,8 +342,7 @@ async function resolveTagIds(tagNames) {
  * 获取已有笔记的标题+内容指纹集合，用于去重
  */
 async function getExistingNoteFingerprints() {
-  const res = await http.get('/notes')
-  const list = Array.isArray(res) ? res : (res?.items || [])
+  const list = await fetchAllNoteListItems()
   const set = new Set()
   for (const n of list) {
     set.add(`${n.title}||${n.contentPreview}`)
