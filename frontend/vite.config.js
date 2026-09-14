@@ -64,8 +64,8 @@ export default defineConfig({
           {
             // 资源型 API（笔记/分类/标签/统计，不含附件与头像）：
             // NetworkFirst，超时 3s 回退缓存，离线时也能浏览最近加载的数据。
-            // 已用负向前瞻排除 /api/auth(不含头像) 与 /api/attachments。
-            urlPattern: /\/api\/(?!(auth|attachments)\/)/,
+            // 已用负向前瞻排除 /api/auth(不含 me 与头像) 与 /api/attachments。
+            urlPattern: /\/api\/(?!(auth\/(?!me|avatar)|attachments)\/)/,
             method: 'GET',
             handler: 'NetworkFirst',
             options: {
@@ -101,6 +101,22 @@ export default defineConfig({
               cacheName: 'api-avatars',
               expiration: {
                 maxEntries: 50,
+                maxAgeSeconds: 7 * 24 * 60 * 60
+              },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
+          {
+            // /auth/me：确认登录态的读接口。NetworkFirst + 缓存回退，
+            // 离线启动时也能拿到用户信息，避免「暂时性失败」误判为掉登录。
+            urlPattern: /\/api\/auth\/me$/,
+            method: 'GET',
+            handler: 'NetworkFirst',
+            options: {
+              networkTimeoutSeconds: 3,
+              cacheName: 'api-auth-me',
+              expiration: {
+                maxEntries: 5,
                 maxAgeSeconds: 7 * 24 * 60 * 60
               },
               cacheableResponse: { statuses: [0, 200] }

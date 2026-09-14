@@ -4,7 +4,9 @@ public record RegisterDto(string UserName, string? Email, string Password, strin
 
 public record LoginDto(string Account, string Password);
 
-public record AuthResponseDto(string Token, string? Email, string? DisplayName);
+public record AuthResponseDto(string Token, string RefreshToken, string? Email, string? DisplayName);
+
+public record RefreshDto(string RefreshToken);
 
 public record UserDto(
     string Id,

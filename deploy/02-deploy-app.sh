@@ -14,6 +14,7 @@ echo -e "\e[32m==== 1. 准备 appsettings.Production.json ====\e[0m"
 APPSETTINGS=/opt/notes/backend/appsettings.Production.json
 if [ -f "$APPSETTINGS" ]; then
   echo "已存在 $APPSETTINGS，保留原有配置（删除后重新部署可覆盖）。"
+  echo -e "\e[33m[提示] 检测到已有 appsettings.Production.json，JWT Key 保持不变，现有用户登录态不受影响。\e[0m"
 else
   # 从模板生成（要求用户填入密码与密钥）
   if [ -f /root/.notes.env ]; then
@@ -45,6 +46,7 @@ else
   sed -i "s|__ADMIN_EMAIL__|${NOTES_ADMIN_EMAIL}|g" "$APPSETTINGS"
   sed -i "s|__ADMIN_PASSWORD__|${NOTES_ADMIN_PASSWORD}|g" "$APPSETTINGS"
   echo "JWT Key 已随机生成并写入配置。如需备份请查看: $APPSETTINGS"
+  echo "JWT Key 指纹(前8位): ${JWT_KEY:0:8}"
   if [ -n "$NOTES_ADMIN_PASSWORD" ]; then
     echo "管理员账号已写入配置（$NOTES_ADMIN_EMAIL），服务启动时会自动创建/授权。"
   else

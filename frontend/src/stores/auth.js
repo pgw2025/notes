@@ -5,7 +5,7 @@ import http from '../api/http'
 // 仅清数据型缓存，保留 app shell 预缓存以加速下次冷启动；防止不同账号在同一设备上串数据。
 async function clearUserDataCaches() {
   if (typeof caches === 'undefined') return
-  const names = ['api-notes', 'api-attachments', 'api-avatars']
+  const names = ['api-notes', 'api-attachments', 'api-avatars', 'api-auth-me']
   try {
     await Promise.all(names.map((n) => caches.delete(n)))
   } catch { /* ignore */ }
@@ -14,6 +14,7 @@ async function clearUserDataCaches() {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || '',
+    refreshToken: localStorage.getItem('refreshToken') || '',
     user: null
   }),
 
@@ -22,14 +23,18 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    setToken(token) {
+    setToken(token, refreshToken) {
       this.token = token
+      if (refreshToken !== undefined) {
+        this.refreshToken = refreshToken
+        localStorage.setItem('refreshToken', refreshToken)
+      }
       localStorage.setItem('token', token)
     },
 
     async login(account, password) {
       const res = await http.post('/auth/login', { account, password })
-      this.setToken(res.token)
+      this.setToken(res.token, res.refreshToken)
       await this.fetchUser()
     },
 
@@ -38,15 +43,21 @@ export const useAuthStore = defineStore('auth', {
       if (email) payload.email = email
       if (displayName) payload.displayName = displayName
       const res = await http.post('/auth/register', payload)
-      this.setToken(res.token)
+      this.setToken(res.token, res.refreshToken)
       await this.fetchUser()
     },
 
     async fetchUser() {
       try {
         this.user = await http.get('/auth/me')
-      } catch {
-        this.logout()
+      } catch (err) {
+        // 只有凭证真失效(401/403)才登出；网络抖动/超时/离线/5xx 保留 token，
+        // 避免「暂时性失败」被误判成「登录失效」导致频繁重新登录。
+        const status = err?.response?.status
+        if (status === 401 || status === 403) {
+          this.logout()
+        }
+        // 其余错误：静默忽略，页面用缓存/空用户继续渲染
       }
     },
 
@@ -91,8 +102,10 @@ export const useAuthStore = defineStore('auth', {
 
     logout() {
       this.token = ''
+      this.refreshToken = ''
       this.user = null
       localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
       // 登出即清除该账号的离线缓存，避免下一位登录用户看到旧数据
       clearUserDataCaches()
     }

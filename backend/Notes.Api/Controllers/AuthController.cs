@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Notes.Api.DTOs;
 using Notes.Api.Models;
 using Notes.Api.Services;
@@ -27,12 +28,14 @@ public class AuthController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly TokenService _tokenService;
     private readonly IFileStorageService _files;
+    private readonly IConfiguration _config;
 
-    public AuthController(UserManager<ApplicationUser> userManager, TokenService tokenService, IFileStorageService files)
+    public AuthController(UserManager<ApplicationUser> userManager, TokenService tokenService, IFileStorageService files, IConfiguration config)
     {
         _userManager = userManager;
         _tokenService = tokenService;
         _files = files;
+        _config = config;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -75,8 +78,8 @@ public class AuthController : ControllerBase
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
-        var token = await _tokenService.CreateToken(user);
-        return Ok(new AuthResponseDto(token, user.Email, user.DisplayName));
+        var (accessToken, refreshToken) = await _tokenService.CreateTokenPair(user);
+        return Ok(new AuthResponseDto(accessToken, refreshToken, user.Email, user.DisplayName));
     }
 
     [HttpPost("login")]
@@ -96,9 +99,63 @@ public class AuthController : ControllerBase
         if (!valid)
             return Unauthorized(new { message = "账号或密码错误" });
 
-        var token = await _tokenService.CreateToken(user);
-        return Ok(new AuthResponseDto(token, user.Email!, user.DisplayName));
+        var (accessToken, refreshToken) = await _tokenService.CreateTokenPair(user);
+        return Ok(new AuthResponseDto(accessToken, refreshToken, user.Email!, user.DisplayName));
     }
+
+    /// <summary>用 Refresh Token 换发新的 Access Token（滑动续期）。</summary>
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponseDto>> Refresh(RefreshDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.RefreshToken))
+            return Unauthorized(new { message = "缺少刷新令牌" });
+
+        ApplicationUser? user;
+        try
+        {
+            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+            var validationParams = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = _config["Jwt:Issuer"],
+                ValidAudience = _config["Jwt:Audience"],
+                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                    System.Text.Encoding.UTF8.GetBytes(_config["Jwt:Key"]!)),
+                ClockSkew = TimeSpan.FromMinutes(5)
+            };
+            var principal = handler.ValidateToken(dto.RefreshToken, validationParams, out var validatedToken);
+
+            // 必须是 refresh 类型的 token，防止用 access token 无限续期
+            if (!principal.Claims.Any(c => c.Type == "token_type" && c.Value == "refresh"))
+                return Unauthorized(new { message = "令牌类型不正确" });
+
+            var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { message = "刷新令牌无效" });
+
+            user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return Unauthorized(new { message = "用户不存在" });
+        }
+        catch
+        {
+            return Unauthorized(new { message = "刷新令牌已失效，请重新登录" });
+        }
+
+        // 账号被禁用时拒绝续期
+        if (await _userManager.IsLockedOutAsync(user))
+            return Unauthorized(new { message = "账号已被禁用，请联系管理员" });
+
+        var newAccess = await _tokenService.RefreshAccessToken(user);
+        return Ok(new AuthResponseDto(newAccess, dto.RefreshToken, user.Email!, user.DisplayName));
+    }
+
+    /// <summary>登出（JWT 无状态，前端负责清除本地 token；此端点作为对称语义占位）。</summary>
+    [HttpPost("logout")]
+    public IActionResult Logout() => Ok(new { message = "已登出" });
 
     [Authorize]
     [HttpGet("me")]

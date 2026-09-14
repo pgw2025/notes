@@ -26,6 +26,7 @@
             :rules="[
               { required: true, message: '请输入邮箱或用户名' }
             ]"
+            @update:model-value="form.error = ''"
           />
           <van-field
             v-model="form.password"
@@ -35,6 +36,8 @@
             placeholder="请输入密码"
             clearable
             :rules="[{ required: true, message: '请输入密码' }]"
+            :error-message="form.error"
+            @update:model-value="form.error = ''"
           />
         </div>
 
@@ -73,7 +76,7 @@ const auth = useAuthStore()
 const theme = useThemeStore()
 const loading = ref(false)
 
-const form = reactive({ account: '', password: '' })
+const form = reactive({ account: '', password: '', error: '' })
 
 const themeIcon = computed(() => {
   if (theme.mode === 'dark') return 'moon-o'
@@ -88,9 +91,12 @@ function toggleTheme() {
 
 async function onSubmit() {
   loading.value = true
+  form.error = ''
   try {
     await auth.login(form.account, form.password)
     router.replace(route.query.redirect || '/notes')
+  } catch (err) {
+    form.error = err?.response?.data?.message || '登录失败，请稍后重试'
   } finally {
     loading.value = false
   }

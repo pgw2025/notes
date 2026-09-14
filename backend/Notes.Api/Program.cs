@@ -59,7 +59,7 @@ builder.Services.AddAuthentication(options =>
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.FromMinutes(5)
         };
         // 允许通过 query 参数 access_token 传递令牌，用于 <img>/文件下载等无法设置请求头的场景
         options.Events = new JwtBearerEvents
