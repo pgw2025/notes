@@ -13,9 +13,9 @@
       @click="selectCategory(null)"
     >
       <div class="cat-icon-wrap">
-        <van-icon name="inbox-o" size="15" />
+        <van-icon name="home-o" size="15" />
       </div>
-      <span class="cat-name">未分类</span>
+      <span class="cat-name">首页</span>
     </div>
 
     <!-- 树形分类导航（递归渲染子分类） -->
@@ -62,7 +62,7 @@ import CategoryNavItem from './CategoryNavItem.vue'
 const props = defineProps({
   categories: { type: Array, required: true },
   tags: { type: Array, default: () => [] },
-  // null = 未分类
+  // null = 首页
   modelValue: { type: [Number, null], default: null },
   tagModelValue: { type: [Number, null], default: null }
 })

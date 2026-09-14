@@ -36,7 +36,7 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<NoteListResponseDto>> List([FromQuery] int? categoryId, [FromQuery] bool? uncategorizedOnly = false, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<NoteListResponseDto>> List([FromQuery] int? categoryId, [FromQuery] bool? uncategorizedOnly = false, [FromQuery] bool? homeOnly = false, [FromQuery] int? tagId = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 20;
@@ -48,7 +48,10 @@ public class NotesController : ControllerBase
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Where(n => n.UserId == UserId);
 
-        if (uncategorizedOnly == true)
+        if (homeOnly == true)
+            // 首页 = 未分类笔记 + 所有置顶笔记（跨分类冗余显示）
+            query = query.Where(n => !n.CategoryId.HasValue || n.IsPinned);
+        else if (uncategorizedOnly == true)
             query = query.Where(n => !n.CategoryId.HasValue);
         else if (categoryId.HasValue)
         {
@@ -56,6 +59,9 @@ public class NotesController : ControllerBase
             var descendantIds = await GetCategoryAndDescendantIds(categoryId.Value);
             query = query.Where(n => n.CategoryId.HasValue && descendantIds.Contains(n.CategoryId.Value));
         }
+        else if (tagId.HasValue)
+            // 按标签筛选：笔记的标签集合中包含该标签即匹配
+            query = query.Where(n => n.NoteTags.Any(nt => nt.TagId == tagId.Value));
 
         var totalCount = await query.CountAsync();
 

@@ -202,19 +202,19 @@ const isDarkEffective = computed(() => theme.isDarkEffective)
 const notes = ref([])
 const categories = ref([])
 const tags = ref([])
-// null = 未分类（入口「未分类」）
+// null = 首页（入口「首页」）
 const activeCategoryId = ref(null)
 // null = 不按标签筛选
 const activeTagId = ref(null)
 
 // 视图模式：由分类/标签取值派生
-// 'uncategorized' = 未分类（categoryId 与 tagId 均为 null）
-// 'category'       = 按分类
-// 'tag'            = 按标签
+// 'home'     = 首页（categoryId 与 tagId 均为 null）：未分类 + 置顶
+// 'category' = 按分类
+// 'tag'      = 按标签
 const viewMode = computed(() => {
   if (activeTagId.value != null) return 'tag'
   if (activeCategoryId.value != null) return 'category'
-  return 'uncategorized'
+  return 'home'
 })
 const showDrawer = ref(false)
 const refreshing = ref(false)
@@ -224,24 +224,24 @@ const listFinished = ref(false)
 const currentPage = ref(1)
 const pageSize = 20
 
-// 导航栏标题：当前选中分类/标签名，未分类时显示「未分类」
+// 导航栏标题：当前选中分类/标签名，首页时显示「首页」
 const currentCategoryName = computed(() => {
   if (activeTagId.value != null) {
     const foundTag = tags.value.find((t) => t.id === activeTagId.value)
     return foundTag ? `#${foundTag.name}` : '标签笔记'
   }
-  if (activeCategoryId.value == null) return '未分类'
+  if (activeCategoryId.value == null) return '首页'
   return findCategoryById(categories.value, activeCategoryId.value)?.name ?? '笔记'
 })
 
 // 空态文案：按视图区分
 const emptyTitle = computed(() => {
-  if (viewMode.value === 'uncategorized') return '还没有未分类笔记'
+  if (viewMode.value === 'home') return '还没有笔记'
   if (viewMode.value === 'tag') return '该标签下暂无笔记'
   return '该分类下暂无笔记'
 })
 const emptySub = computed(() => {
-  if (viewMode.value === 'uncategorized') return '新建的笔记若未指定分类，会出现在这里'
+  if (viewMode.value === 'home') return '置顶的笔记和未分类的笔记会显示在这里'
   return '记录灵感、待办、会议纪要或学习心得'
 })
 
@@ -344,7 +344,7 @@ async function fetchPage() {
   const params = { page: currentPage.value, pageSize }
   if (viewMode.value === 'category') params.categoryId = activeCategoryId.value
   if (viewMode.value === 'tag') params.tagId = activeTagId.value
-  if (viewMode.value === 'uncategorized') params.uncategorizedOnly = true
+  if (viewMode.value === 'home') params.homeOnly = true
   const res = await http.get('/notes', { params })
   notes.value.push(...res.items)
   if (!res.hasMore) listFinished.value = true
