@@ -13,9 +13,9 @@
       @click="selectCategory(null)"
     >
       <div class="cat-icon-wrap">
-        <van-icon name="apps-o" size="15" />
+        <van-icon name="inbox-o" size="15" />
       </div>
-      <span class="cat-name">全部笔记</span>
+      <span class="cat-name">未分类</span>
     </div>
 
     <div
@@ -64,7 +64,7 @@
 const props = defineProps({
   categories: { type: Array, required: true },
   tags: { type: Array, default: () => [] },
-  // null = 全部
+  // null = 未分类
   modelValue: { type: [Number, null], default: null },
   tagModelValue: { type: [Number, null], default: null }
 })

@@ -36,7 +36,7 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<NoteListResponseDto>> List([FromQuery] int? categoryId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<NoteListResponseDto>> List([FromQuery] int? categoryId, [FromQuery] bool? uncategorizedOnly = false, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 20;
@@ -48,7 +48,9 @@ public class NotesController : ControllerBase
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Where(n => n.UserId == UserId);
 
-        if (categoryId.HasValue)
+        if (uncategorizedOnly == true)
+            query = query.Where(n => !n.CategoryId.HasValue);
+        else if (categoryId.HasValue)
             query = query.Where(n => n.CategoryId == categoryId);
 
         var totalCount = await query.CountAsync();
