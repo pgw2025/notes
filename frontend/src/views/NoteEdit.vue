@@ -710,6 +710,8 @@ const toolbarButtons = computed(() => [
   { divider: true },
   { label: '•', title: '无序列表', action: () => insert('- ', '', '', 'line') },
   { label: '1.', title: '有序列表', action: () => insert('1. ', '', '', 'line') },
+  { label: '◻', title: '待办', action: () => insert('- [ ] ', '', '', 'line') },
+  { label: '☑', title: '已完成待办', action: markTodoDone },
   { label: '&quot;', title: '引用', action: () => insert('> ', '', '', 'line') },
   { label: '---', title: '分割线', action: () => insert('\n---\n', '', '', 'block') },
   { divider: true },
@@ -1488,6 +1490,27 @@ function insert(before, after = '', placeholder = '', mode = 'block') {
   nextTick(() => {
     ta.focus()
     const pos = start + before.length + sel.length
+    ta.setSelectionRange(pos, pos)
+  })
+}
+
+// 已完成待办：将光标所在行的未完成待办 `- [ ]` 替换为已完成 `- [x]`
+// （不额外插入标签；若当前行非待办或已是已完成则不做改动，避免误操作）
+function markTodoDone() {
+  const ta = textareaRef.value
+  if (!ta) return
+  const start = ta.selectionStart
+  const lineStart = form.content.lastIndexOf('\n', start - 1) + 1
+  const lineEnd = form.content.indexOf('\n', start)
+  const curEnd = lineEnd === -1 ? form.content.length : lineEnd
+  const line = form.content.substring(lineStart, curEnd)
+  const re = /^(\s*)- \[ \]/
+  if (!re.test(line)) return
+  const newLine = line.replace(re, '$1- [x]')
+  form.content = form.content.substring(0, lineStart) + newLine + form.content.substring(curEnd)
+  nextTick(() => {
+    ta.focus()
+    const pos = lineStart + newLine.length
     ta.setSelectionRange(pos, pos)
   })
 }

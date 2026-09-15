@@ -1016,7 +1016,8 @@
 }
 
 :global(body.dark) .toolbar {
-  background: var(--surface) !important;
+  /* 桌面端工具栏完全透明，透出下方笔记背景色；移动吸底条有更靠后的独立规则不受影响 */
+  background: transparent !important;
 }
 
 :global(body.dark) .toolbar-divider {

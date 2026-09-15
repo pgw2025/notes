@@ -61,6 +61,7 @@ body.dark {
   color-scheme: dark;
 
   --app-bg:              #0f172a;   /* Slate 900 */
+  --toolbar-bg:          transparent; /* 编辑器工具栏深色下透明，透出笔记背景 */
   --surface:             #1e293b;   /* Slate 800 */
   --surface-2:           #334155;   /* Slate 700 */
   --surface-3:           #475569;   /* Slate 600 */
@@ -403,6 +404,7 @@ body.dark input::placeholder, body.dark textarea::placeholder {
 .markdown-body ol { list-style: decimal; padding-left: 24px; margin: 0 0 1em; }
 .markdown-body ul ul { list-style: circle; }
 .markdown-body ul ul ul { list-style: square; }
+.markdown-body li:has(> input[type="checkbox"]) { list-style: none; }
 .markdown-body li { margin: 4px 0; }
 .markdown-body li > p { margin: 0 0 0.6em; }
 
