@@ -177,7 +177,7 @@
 </template>
 
 <script setup>
-import { ref, onActivated, onMounted, computed, watch } from 'vue'
+import { ref, onActivated, onDeactivated, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
@@ -206,6 +206,13 @@ const tags = ref([])
 const activeCategoryId = ref(null)
 // null = 不按标签筛选
 const activeTagId = ref(null)
+
+// 标记：当前属性变更是否正由「路由 query」驱动
+let applyingFromRoute = false
+// 路由 query 驱动的加载自增序号，用于 onActivated 判断本轮是否已被路由加载过
+let routeLoadSeq = 0
+// 记录组件上次激活/初始化时 routeLoadSeq 的基线值
+let lastRouteLoadSeqAtActivation = 0
 
 // 视图模式：由分类/标签取值派生
 // 'home'     = 首页（categoryId 与 tagId 均为 null）：未分类 + 置顶
@@ -351,25 +358,39 @@ async function fetchPage() {
 }
 
 // 侧栏 / 抽屉选择分类：v-model 更新后触发加载
-watch(activeCategoryId, (val) => {
-  if (val != null) {
-    activeTagId.value = null
-  }
-  showDrawer.value = false // 移动端选中后自动收起抽屉
-  loadNotes()
-  // 同步到 URL，刷新 / 分享时保持所选分类
-  syncUrl()
-})
+// flush:'sync' 使本 watch 在 activeCategoryId 赋值后立即执行，确保 applyingFromRoute 守卫可靠
+watch(
+  activeCategoryId,
+  (val) => {
+    // 由路由 query 驱动时，加载统一在 route.query watch 里完成，这里只做状态同步
+    if (applyingFromRoute) return
+    if (val != null) {
+      activeTagId.value = null
+    }
+    showDrawer.value = false // 移动端选中后自动收起抽屉
+    loadNotes()
+    // 同步到 URL，刷新 / 分享时保持所选分类
+    syncUrl()
+    routeLoadSeq++
+  },
+  { flush: 'sync' }
+)
 
 // 侧栏 / 抽屉选择标签：v-model 更新后触发加载
-watch(activeTagId, (val) => {
-  if (val != null) {
-    activeCategoryId.value = null
-  }
-  showDrawer.value = false
-  loadNotes()
-  syncUrl()
-})
+watch(
+  activeTagId,
+  (val) => {
+    if (applyingFromRoute) return
+    if (val != null) {
+      activeCategoryId.value = null
+    }
+    showDrawer.value = false
+    loadNotes()
+    syncUrl()
+    routeLoadSeq++
+  },
+  { flush: 'sync' }
+)
 
 function syncUrl() {
   const query = {}
@@ -378,18 +399,26 @@ function syncUrl() {
   router.replace({ query })
 }
 
-// 监听路由 query 变化（从左侧主导航栏或外部点击跳转时）
-watch(
-  () => route.query,
-  (newQ) => {
-    const qCat = newQ.categoryId ? Number(newQ.categoryId) : null
-    const qTag = newQ.tagId ? Number(newQ.tagId) : null
-    if (qCat !== activeCategoryId.value || qTag !== activeTagId.value) {
-      activeCategoryId.value = qCat
-      activeTagId.value = qTag
-    }
-  }
-)
+// 将路由 query 同步到当前筛选状态；若发生筛选变化则由路由统一加载。
+// 返回 true 表示筛选被路由驱动变化并已发起加载（routeLoadSeq 也已递增）。
+function applyRouteQuery() {
+  const qCat = route.query.categoryId ? Number(route.query.categoryId) : null
+  const qTag = route.query.tagId ? Number(route.query.tagId) : null
+  if (qCat === activeCategoryId.value && qTag === activeTagId.value) return false
+
+  applyingFromRoute = true
+  activeCategoryId.value = qCat
+  activeTagId.value = qTag
+  applyingFromRoute = false
+  // 由路由驱动的筛选变化在这里统一加载
+  loadNotes()
+  routeLoadSeq++
+  return true
+}
+
+// 从左侧主导航栏或外部点击跳转（携带分类/标签 query）时，query 变化统一在这里处理，
+// 避免与 keep-alive 重新激活时的 onActivated 重复触发 loadNotes。
+watch(() => route.query, applyRouteQuery)
 
 async function onLoadMore() {
   try {
@@ -448,14 +477,26 @@ onMounted(async () => {
     await loadNotes()
   }
   initialized = true
+  lastRouteLoadSeqAtActivation = routeLoadSeq
+})
+
+// 离开页面（被 keep-alive 停用）时记录路由加载基线，供 onActivated 判断
+// 本轮重新激活是否已被路由 query 驱动加载过，避免重复加载。
+onDeactivated(() => {
+  lastRouteLoadSeqAtActivation = routeLoadSeq
 })
 
 onActivated(() => {
   if (!initialized) return
-  // 从编辑页返回时刷新
   loadCategories()
   loadTags()
-  loadNotes()
+  // 先同步路由 query（若发生变化则已由 applyRouteQuery 加载，routeLoadSeq 已递增）
+  applyRouteQuery()
+  // 本轮没有发生路由驱动的筛选变化，说明是“返回同一页”（如从编辑页返回），需要刷新
+  if (routeLoadSeq === lastRouteLoadSeqAtActivation) {
+    loadNotes()
+  }
+  lastRouteLoadSeqAtActivation = routeLoadSeq
 })
 </script>
 
