@@ -132,8 +132,9 @@
     </div>
 
     <!-- 时间线 -->
-    <div v-else class="timeline">
-      <template v-for="year in timeline.years" :key="year.year">
+    <div v-else class="timeline-layout">
+      <div class="timeline">
+        <template v-for="year in timeline.years" :key="year.year">
         <div class="year-group">
           <div class="year-header" @click="toggleYear(year.year)">
             <van-icon :name="yearExpanded[year.year] ? 'arrow-down' : 'arrow'" size="14" />
@@ -165,6 +166,7 @@
                           v-for="n in day.notes"
                           :key="n.id"
                           class="note-card"
+                          :class="{ selected: n.id === selectedNoteId }"
                           @click="openNote(n.id)"
                         >
                           <div class="note-time">{{ formatTime(n.updatedAt) }}</div>
@@ -184,6 +186,45 @@
           </div>
         </div>
       </template>
+      </div>
+
+      <!-- 桌面端右栏：详情预览工作台 -->
+      <aside v-if="isDesktop" class="timeline-preview">
+        <div v-if="previewLoading" class="preview-loading">
+          <van-loading color="var(--color-primary)">加载中…</van-loading>
+        </div>
+
+        <div v-else-if="selectedNote" class="preview-note">
+          <div class="preview-toolbar">
+            <span class="preview-crumb">预览</span>
+            <div class="preview-toolbar-actions">
+              <button class="preview-action-btn" @click="$router.push(`/notes/${selectedNote.id}`)" title="全屏阅读">
+                <van-icon name="expand-o" size="14" />
+                <span>阅读</span>
+              </button>
+              <button class="preview-action-btn" @click="$router.push(`/notes/${selectedNote.id}/edit`)" title="编辑笔记">
+                <van-icon name="edit" size="14" />
+                <span>编辑</span>
+              </button>
+            </div>
+          </div>
+
+          <h2 class="preview-title">{{ selectedNote.title || '无标题' }}</h2>
+          <div class="preview-meta">
+            <span v-if="selectedNote.categoryName" class="preview-cat">📁 {{ selectedNote.categoryName }}</span>
+            <span v-for="t in (selectedNote.tags || [])" :key="t" class="preview-tag">#{{ t }}</span>
+          </div>
+          <div class="preview-body">
+            <markdown-body :content="selectedNote.content" :collapsible="true" />
+          </div>
+        </div>
+
+        <div v-else class="preview-empty">
+          <div class="preview-empty-icon">🕐</div>
+          <p>点击左侧时间线中的笔记</p>
+          <span>即可在此即时预览正文</span>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
@@ -193,11 +234,30 @@ import { reactive, ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../api/http'
 import { flattenCategories } from '../utils/categoryTree'
+import { useResponsive } from '../composables/useResponsive'
+import MarkdownBody from '../components/MarkdownBody.vue'
+import { formatDateTime } from '../utils/format'
 
 const router = useRouter()
+const { isDesktop } = useResponsive()
 
 const loading = ref(false)
 const timeline = ref({ totalNotes: 0, years: [] })
+
+// ============ 桌面端右栏预览 ============
+const selectedNoteId = ref(null)
+const selectedNote = ref(null)
+const previewLoading = ref(false)
+
+async function selectNote(n) {
+  selectedNoteId.value = n.id
+  previewLoading.value = true
+  try {
+    selectedNote.value = await http.get(`/notes/${n.id}`)
+  } finally {
+    previewLoading.value = false
+  }
+}
 
 // ============ 过滤器 ============
 const filters = reactive({
@@ -293,7 +353,13 @@ async function reload() {
   }
 }
 
-function openNote(id) { router.push(`/notes/${id}`) }
+function openNote(id) {
+  if (isDesktop.value) {
+    selectNote({ id })
+  } else {
+    router.push(`/notes/${id}`)
+  }
+}
 
 // ============ 格式化 ============
 function pad(n) { return String(n).padStart(2, '0') }
@@ -566,8 +632,134 @@ watch(() => filters.keyword, () => {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
-  .timeline {
+  .timeline-layout {
+    display: flex;
+    gap: 20px;
     padding: 16px 16px 32px;
+    align-items: flex-start;
+  }
+  .timeline {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+  }
+  .timeline-preview {
+    width: 380px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .preview-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 0;
+  }
+  .preview-note {
+    padding: 16px 18px 24px;
+  }
+  .preview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-crumb {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .preview-toolbar-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .preview-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .preview-action-btn:hover {
+    background: var(--surface-3);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .preview-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .preview-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .preview-cat {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+  .preview-tag {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+  }
+  .preview-body {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-primary);
+  }
+  .preview-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
+  }
+  .preview-empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.6;
+  }
+  .preview-empty p {
+    margin: 0 0 4px;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .preview-empty span {
+    font-size: 12px;
+  }
+  .note-card.selected {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
   }
   .year-group {
     margin-bottom: 16px;

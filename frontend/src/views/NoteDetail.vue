@@ -1,5 +1,5 @@
 <template>
-  <div class="page" :class="{ 'has-desktop-toc': headings.length > 0 && showDesktopToc, 'is-fullscreen': isFullscreen }" :style="pageStyle">
+  <div class="page" :class="{ 'has-desktop-toc': headings.length > 0 && showDesktopToc, 'has-inspector': isDesktop, 'is-fullscreen': isFullscreen }" :style="pageStyle">
     <van-nav-bar title="笔记详情" left-arrow @click-left="$router.back()">
       <template #right>
         <!-- 桌面端单行布局：按钮在标题右侧 -->
@@ -167,12 +167,64 @@
         </div>
       </div>
 
-      <!-- 桌面端侧边悬浮大纲栏 (Sticky TOC) -->
-      <aside
-        v-if="headings.length && showDesktopToc"
-        class="desktop-toc-aside"
-        :style="{ color: textColor }"
-      >
+      <!-- 桌面端常驻属性检查器 (Inspector) + 大纲 -->
+      <aside class="desktop-inspector-aside" :style="{ color: textColor }">
+        <!-- 属性检查器 -->
+        <div class="inspector-card">
+          <div class="inspector-header">
+            <van-icon name="info-o" class="inspector-header-icon" />
+            <span>属性</span>
+          </div>
+          <div class="inspector-body">
+            <div class="inspector-row">
+              <span class="inspector-label">分类</span>
+              <span class="inspector-value">{{ note.categoryName || '未分类' }}</span>
+            </div>
+            <div class="inspector-row">
+              <span class="inspector-label">标签</span>
+              <div class="inspector-tags">
+                <span v-if="note.tags && note.tags.length" class="inspector-tag" v-for="t in note.tags" :key="t">#{{ t }}</span>
+                <span v-else class="inspector-muted">无标签</span>
+              </div>
+            </div>
+            <div class="inspector-row">
+              <span class="inspector-label">字数</span>
+              <span class="inspector-value">{{ charCount }} 字</span>
+            </div>
+            <div class="inspector-row">
+              <span class="inspector-label">创建</span>
+              <span class="inspector-value">{{ formatDateTime(note.createdAt) }}</span>
+            </div>
+            <div class="inspector-row">
+              <span class="inspector-label">更新</span>
+              <span class="inspector-value">{{ formatDateTime(note.updatedAt) }}</span>
+            </div>
+          </div>
+          <div class="inspector-actions">
+            <button type="button" class="inspector-action-btn" @click="onTogglePin">
+              <van-icon :name="note?.isPinned ? 'star' : 'star-o'" size="14" />
+              <span>{{ note?.isPinned ? '取消置顶' : '置顶' }}</span>
+            </button>
+            <button type="button" class="inspector-action-btn" @click="showExportSheet = true">
+              <van-icon name="down" size="14" />
+              <span>导出</span>
+            </button>
+            <button type="button" class="inspector-action-btn" @click="openVersions">
+              <van-icon name="clock-o" size="14" />
+              <span>历史</span>
+            </button>
+            <button type="button" class="inspector-action-btn" @click="$router.push(`/notes/${note.id}/edit`)">
+              <van-icon name="edit" size="14" />
+              <span>编辑</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 桌面端侧边悬浮大纲栏 (Sticky TOC) -->
+        <div
+          v-if="headings.length && showDesktopToc"
+          class="desktop-toc-card-wrap"
+        >
         <div class="toc-card">
           <div class="toc-header">
             <div class="toc-header-title">
@@ -204,6 +256,7 @@
               <span v-if="collapsedSet.has(h.id)" class="toc-fold-flag">已折叠</span>
             </button>
           </nav>
+        </div>
         </div>
       </aside>
     </div>
@@ -385,10 +438,12 @@ import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { exportSingleNote } from '../utils/exportImport'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
+import { useResponsive } from '../composables/useResponsive'
 
 const route = useRoute()
 const auth = useAuthStore()
 const theme = useThemeStore()
+const { isDesktop } = useResponsive()
 const note = ref(null)
 
 // 全屏阅读态
@@ -616,6 +671,13 @@ const textColor = computed(() => getContrastColor(effectiveBg.value))
 const subTextColor = computed(() => isDarkColor(effectiveBg.value) ? 'rgba(255,255,255,0.6)' : 'var(--text-tertiary)')
 const navIconColor = computed(() => isDarkColor(effectiveBg.value) ? '#FFFFFF' : '#323233')
 
+// 正文字符数（近似，用于属性检查器展示）
+const charCount = computed(() => {
+  const c = note.value?.content
+  if (!c) return 0
+  return c.replace(/\s+/g, '').length
+})
+
 // 整页背景色
 const pageStyle = computed(() => ({
   background: effectiveBg.value
@@ -767,7 +829,7 @@ onMounted(() => {
   max-width: 820px;
 }
 
-.desktop-toc-aside {
+.desktop-inspector-aside {
   display: none;
 }
 
@@ -799,6 +861,110 @@ onMounted(() => {
   margin-right: 8px;
   font-size: 18px;
   color: var(--color-primary);
+}
+
+/* ========== 桌面端属性检查器 (Inspector) ========== */
+.inspector-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+:global(body.dark) .inspector-card {
+  background: #242830;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+}
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inspector-header-icon {
+  font-size: 14px;
+  color: var(--color-primary);
+}
+
+.inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inspector-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.inspector-label {
+  flex-shrink: 0;
+  width: 32px;
+  color: var(--text-tertiary);
+}
+
+.inspector-value {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.inspector-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.inspector-tag {
+  font-size: 12px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.inspector-muted {
+  color: var(--text-tertiary);
+}
+
+.inspector-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.inspector-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inspector-action-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
 }
 
 /* ========== 桌面端大纲侧栏 ========== */
@@ -1308,16 +1474,25 @@ onMounted(() => {
   .page.has-desktop-toc {
     max-width: var(--page-width-wide, 1180px);
   }
+  .page.has-inspector {
+    max-width: var(--page-width-wide, 1180px);
+  }
   .detail-container {
     padding: 24px 32px;
   }
-  .desktop-toc-aside {
+  .desktop-inspector-aside {
     display: block;
     width: 240px;
     flex-shrink: 0;
     position: sticky;
     top: 64px;
     z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .desktop-toc-card-wrap {
+    display: block;
   }
   .detail-title {
     font-size: 26px;

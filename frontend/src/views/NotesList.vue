@@ -14,16 +14,7 @@
     </van-nav-bar>
 
     <div class="layout">
-      <!-- 桌面端：常驻侧边栏（分类与标签） -->
-      <aside class="sidebar desktop-only">
-        <CategoryNav
-          v-model="activeCategoryId"
-          v-model:tagModelValue="activeTagId"
-          :categories="categories"
-          :tags="tags"
-        />
-      </aside>
-
+      <!-- 桌面端：中栏（卡片网格），组织维度已收敛到全局左栏 -->
       <main class="content">
         <!-- 顶部信息摘要条 -->
         <div class="content-header">
@@ -818,21 +809,12 @@ onActivated(() => {
     padding-bottom: 32px;
   }
   .layout {
-    display: flex;
-    gap: 20px;
     padding: 16px 24px;
-    align-items: flex-start;
-  }
-  .sidebar {
-    width: 240px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 72px;
-    max-height: calc(100vh - 90px);
-    overflow-y: auto;
   }
   .content {
-    flex: 1;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
     min-width: 0;
   }
   .notes-grid {

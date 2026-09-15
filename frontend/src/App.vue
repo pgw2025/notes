@@ -25,7 +25,8 @@
           <span class="item-label">{{ item.label }}</span>
         </router-link>
 
-        <!-- 侧边栏所有标签展示区域 -->
+        <!-- 侧边栏分类树 + 标签树 -->
+        <SidebarCategories :categories="categoryStore.categories" />
         <SidebarTags :tags="tagStore.tags" />
       </nav>
 
@@ -80,13 +81,16 @@ import { showToast } from 'vant'
 import { useResponsive } from './composables/useResponsive'
 import { useThemeStore } from './stores/theme'
 import { useTagStore } from './stores/tag'
+import { useCategoryStore } from './stores/category'
 import { useOfflineStore } from './stores/offline'
 import SidebarTags from './components/SidebarTags.vue'
+import SidebarCategories from './components/SidebarCategories.vue'
 import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
 const theme = useThemeStore()
 const tagStore = useTagStore()
+const categoryStore = useCategoryStore()
 const offline = useOfflineStore()
 const { isDesktop } = useResponsive()
 
@@ -97,6 +101,7 @@ onMounted(() => {
   const token = localStorage.getItem('token')
   if (token) {
     tagStore.fetchTags()
+    categoryStore.fetchCategories()
   }
   window.addEventListener('keydown', handleGlobalKey)
 })
@@ -112,13 +117,14 @@ function handleGlobalKey(e) {
   }
 }
 
-// 当切换页面时（如创建新笔记或在编辑页添加标签后返回），同步刷新侧栏标签列表
+// 当切换页面时（如创建新笔记或在编辑页添加标签后返回），同步刷新侧栏标签/分类列表
 watch(
   () => route.fullPath,
   () => {
     const token = localStorage.getItem('token')
     if (token && !route.meta.public) {
       tagStore.fetchTags()
+      categoryStore.fetchCategories()
     }
   }
 )
