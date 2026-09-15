@@ -1,5 +1,5 @@
 <template>
-  <div class="page" :class="{ 'has-desktop-toc': headings.length > 0 && showDesktopToc }" :style="pageStyle">
+  <div class="page" :class="{ 'has-desktop-toc': headings.length > 0 && showDesktopToc, 'is-fullscreen': isFullscreen }" :style="pageStyle">
     <van-nav-bar title="笔记详情" left-arrow @click-left="$router.back()">
       <template #right>
         <!-- 桌面端单行布局：按钮在标题右侧 -->
@@ -18,6 +18,13 @@
             :style="{ color: showDesktopToc ? '#1989fa' : navIconColor }"
             title="切换大纲侧栏"
             @click="showDesktopToc = !showDesktopToc"
+          />
+          <van-icon
+            :name="isFullscreen ? 'shrink' : 'expand-o'"
+            size="20"
+            :style="{ color: navIconColor }"
+            title="全屏阅读"
+            @click="toggleFullscreen"
           />
           <van-icon
             :name="note?.isPinned ? 'star' : 'star-o'"
@@ -384,6 +391,14 @@ const auth = useAuthStore()
 const theme = useThemeStore()
 const note = ref(null)
 
+// 全屏阅读态
+const isFullscreen = ref(false)
+
+function toggleFullscreen() {
+  isFullscreen.value = !isFullscreen.value
+  document.body.classList.toggle('note-fullscreen', isFullscreen.value)
+}
+
 // ================= 大纲（TOC）与章节折叠 =================
 const markdownBodyRef = ref(null)
 const headings = ref([])
@@ -478,6 +493,7 @@ onUnmounted(() => {
   }
   window.removeEventListener('keydown', handleGlobalKeyDown)
   clearTimeout(searchDebounceTimer)
+  document.body.classList.remove('note-fullscreen')
 })
 
 // ================= 正文搜索与联动 =================
@@ -554,6 +570,12 @@ function handleGlobalKeyDown(e) {
   if (showSearchBar.value && e.key === 'Escape') {
     e.preventDefault()
     closeSearch()
+    return
+  }
+  // Esc 退出全屏阅读
+  if (isFullscreen.value && e.key === 'Escape') {
+    e.preventDefault()
+    toggleFullscreen()
   }
 }
 
@@ -1449,5 +1471,21 @@ onMounted(() => {
 .search-slide-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.98);
+}
+
+/* ========== 全屏阅读模式 ========== */
+.page.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow-y: auto;
+  margin: 0;
+  max-width: none !important;
+  padding-bottom: 0;
+}
+
+.page.is-fullscreen .detail-container {
+  max-width: 960px;
+  margin: 0 auto;
 }
 </style>
