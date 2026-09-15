@@ -14,135 +14,208 @@
     </van-nav-bar>
 
     <div class="layout">
-      <!-- 桌面端：中栏（卡片网格），组织维度已收敛到全局左栏 -->
-      <main class="content">
-        <!-- 顶部信息摘要条 -->
-        <div class="content-header">
-          <div class="header-left">
-            <h2 class="view-title">{{ currentCategoryName }}</h2>
-            <span class="view-count">{{ notes.length }} 篇笔记</span>
-          </div>
-          <div class="header-right">
-            <router-link to="/notes/new" class="quick-new-link">
-              <van-icon name="plus" size="14" />
-              <span>写笔记</span>
-            </router-link>
-          </div>
-        </div>
-
-        <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-          <van-list
-            v-model:loading="listLoading"
-            :finished="listFinished"
-            finished-text="没有更多了"
-            @load="onLoadMore"
-          >
-            <!-- 空状态 -->
-            <div v-if="!loading && notes.length === 0 && listFinished" class="empty-wrap">
-              <div class="empty-icon-box">📝</div>
-              <p class="empty-title">{{ emptyTitle }}</p>
-              <p class="empty-sub">{{ emptySub }}</p>
-              <van-button type="primary" round icon="plus" size="small" @click="$router.push('/notes/new')">
-                新建笔记
-              </van-button>
+      <!-- 桌面端：三栏骨架（中栏列表 + 右栏预览/快速编辑），组织维度在全局左栏 -->
+      <div class="notes-desktop-layout">
+        <main class="content">
+          <!-- 顶部信息摘要条 -->
+          <div class="content-header">
+            <div class="header-left">
+              <h2 class="view-title">{{ currentCategoryName }}</h2>
+              <span class="view-count">{{ notes.length }} 篇笔记</span>
             </div>
+            <div class="header-right">
+              <router-link to="/notes/new" class="quick-new-link">
+                <van-icon name="plus" size="14" />
+                <span>写笔记</span>
+              </router-link>
+            </div>
+          </div>
 
-            <div v-if="notes.length > 0" class="notes-grid">
-              <van-swipe-cell
-                v-for="n in notes"
-                :key="n.id"
-                class="notes-grid-item"
-                :class="{ 'is-pinned': n.isPinned }"
-              >
-                <div
-                  class="note-card"
-                  :style="cardStyle(n)"
-                  @click="goDetail(n.id)"
+          <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
+            <van-list
+              v-model:loading="listLoading"
+              :finished="listFinished"
+              finished-text="没有更多了"
+              @load="onLoadMore"
+            >
+              <!-- 空状态 -->
+              <div v-if="!loading && notes.length === 0 && listFinished" class="empty-wrap">
+                <div class="empty-icon-box">📝</div>
+                <p class="empty-title">{{ emptyTitle }}</p>
+                <p class="empty-sub">{{ emptySub }}</p>
+                <van-button type="primary" round icon="plus" size="small" @click="$router.push('/notes/new')">
+                  新建笔记
+                </van-button>
+              </div>
+
+              <div v-if="notes.length > 0" class="notes-grid">
+                <van-swipe-cell
+                  v-for="n in notes"
+                  :key="n.id"
+                  class="notes-grid-item"
+                  :class="{ 'is-pinned': n.isPinned, 'is-selected': n.id === selectedNoteId }"
                 >
-                  <!-- 置顶标签 -->
-                  <div v-if="n.isPinned" class="pinned-badge">
-                    <van-icon name="star" size="12" />
-                    <span>置顶</span>
-                  </div>
+                  <div
+                    class="note-card"
+                    :style="cardStyle(n)"
+                    @click="goDetail(n.id)"
+                  >
+                    <!-- 置顶标签 -->
+                    <div v-if="n.isPinned" class="pinned-badge">
+                      <van-icon name="star" size="12" />
+                      <span>置顶</span>
+                    </div>
 
-                  <div class="note-title-row">
-                    <div class="note-title">{{ n.title || '无标题' }}</div>
-                    
-                    <!-- 桌面端悬浮操作按钮组 -->
-                    <div class="card-hover-actions">
-                      <button
-                        class="card-action-btn"
-                        :class="{ 'is-active': n.isPinned }"
-                        :title="n.isPinned ? '取消置顶' : '置顶'"
-                        @click.stop="onTogglePin(n)"
-                      >
-                        <van-icon :name="n.isPinned ? 'star' : 'star-o'" size="15" />
-                      </button>
-                      <button
-                        class="card-action-btn"
-                        title="编辑"
-                        @click.stop="goEdit(n.id)"
-                      >
-                        <van-icon name="edit" size="15" />
-                      </button>
-                      <button
-                        class="card-action-btn btn-danger"
-                        title="删除"
-                        @click.stop="onDelete(n)"
-                      >
-                        <van-icon name="delete-o" size="15" />
-                      </button>
+                    <div class="note-title-row">
+                      <div class="note-title">{{ n.title || '无标题' }}</div>
+                      
+                      <!-- 桌面端悬浮操作按钮组 -->
+                      <div class="card-hover-actions">
+                        <button
+                          class="card-action-btn"
+                          :class="{ 'is-active': n.isPinned }"
+                          :title="n.isPinned ? '取消置顶' : '置顶'"
+                          @click.stop="onTogglePin(n)"
+                        >
+                          <van-icon :name="n.isPinned ? 'star' : 'star-o'" size="15" />
+                        </button>
+                        <button
+                          class="card-action-btn"
+                          title="编辑"
+                          @click.stop="goEdit(n.id)"
+                        >
+                          <van-icon name="edit" size="15" />
+                        </button>
+                        <button
+                          class="card-action-btn btn-danger"
+                          title="删除"
+                          @click.stop="onDelete(n)"
+                        >
+                          <van-icon name="delete-o" size="15" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
+
+                    <div class="note-meta">
+                      <div class="tags-row">
+                        <span v-if="n.categoryName" class="meta-tag cat-tag" :style="tagStyle(n)">
+                          📁 {{ n.categoryName }}
+                        </span>
+                        <span
+                          v-for="t in n.tags"
+                          :key="t"
+                          class="meta-tag"
+                          :style="tagStyle(n)"
+                        >
+                          #{{ t }}
+                        </span>
+                      </div>
+                      <span class="note-time" :style="{ color: timeColor(n) }">{{ formatTime(n.updatedAt) }}</span>
                     </div>
                   </div>
 
-                  <div class="note-preview">{{ n.contentPreview || '暂无内容' }}</div>
+                  <template #right>
+                    <van-button
+                      square
+                      type="primary"
+                      text="编辑"
+                      class="swipe-action-btn edit-btn"
+                      @click.stop="goEdit(n)"
+                    />
+                    <van-button
+                      square
+                      type="warning"
+                      :text="n.isPinned ? '取消置顶' : '置顶'"
+                      class="swipe-action-btn pin-btn"
+                      @click.stop="onTogglePin(n)"
+                    />
+                    <van-button
+                      square
+                      type="danger"
+                      text="删除"
+                      class="swipe-action-btn del-btn"
+                      @click.stop="onDelete(n)"
+                    />
+                  </template>
+                </van-swipe-cell>
+              </div>
+            </van-list>
+          </van-pull-refresh>
+        </main>
 
-                  <div class="note-meta">
-                    <div class="tags-row">
-                      <span v-if="n.categoryName" class="meta-tag cat-tag" :style="tagStyle(n)">
-                        📁 {{ n.categoryName }}
-                      </span>
-                      <span
-                        v-for="t in n.tags"
-                        :key="t"
-                        class="meta-tag"
-                        :style="tagStyle(n)"
-                      >
-                        #{{ t }}
-                      </span>
-                    </div>
-                    <span class="note-time" :style="{ color: timeColor(n) }">{{ formatTime(n.updatedAt) }}</span>
-                  </div>
-                </div>
-
-                <template #right>
-                  <van-button
-                    square
-                    type="primary"
-                    text="编辑"
-                    class="swipe-action-btn edit-btn"
-                    @click.stop="goEdit(n)"
-                  />
-                  <van-button
-                    square
-                    type="warning"
-                    :text="n.isPinned ? '取消置顶' : '置顶'"
-                    class="swipe-action-btn pin-btn"
-                    @click.stop="onTogglePin(n)"
-                  />
-                  <van-button
-                    square
-                    type="danger"
-                    text="删除"
-                    class="swipe-action-btn del-btn"
-                    @click.stop="onDelete(n)"
-                  />
-                </template>
-              </van-swipe-cell>
+        <!-- 桌面端：右栏预览 / 快速编辑面板 -->
+        <aside class="preview-pane" v-if="isDesktop">
+          <template v-if="detailLoading">
+            <div class="pane-loading">
+              <van-loading size="24" color="var(--color-primary)" />
             </div>
-          </van-list>
-        </van-pull-refresh>
-      </main>
+          </template>
+
+          <template v-else-if="detailNote">
+            <!-- 预览态 -->
+            <div v-if="!editMode" class="pane-preview">
+              <div class="pane-toolbar">
+                <div class="pane-title">{{ detailNote.title || '无标题' }}</div>
+                <div class="pane-actions">
+                  <button class="pane-btn" title="编辑" @click="enterEdit">
+                    <van-icon name="edit" size="16" />
+                  </button>
+                  <button class="pane-btn" title="全屏阅读" @click="router.push(`/notes/${detailNote.id}`)">
+                    <van-icon name="expand-o" size="16" />
+                  </button>
+                </div>
+              </div>
+              <div class="pane-meta">
+                <span v-if="detailNote.categoryName" class="pane-cat">📁 {{ detailNote.categoryName }}</span>
+                <span class="pane-time">{{ formatTime(detailNote.updatedAt) }}</span>
+              </div>
+              <div class="pane-body">
+                <MarkdownBody :content="detailNote.content" :collapsible="true" />
+              </div>
+            </div>
+
+            <!-- 快速编辑态 -->
+            <div v-else class="pane-edit">
+              <div class="pane-toolbar">
+                <div class="pane-title">快速编辑</div>
+                <div class="pane-actions">
+                  <button class="pane-btn" title="取消" @click="cancelEdit">
+                    <van-icon name="cross" size="16" />
+                  </button>
+                </div>
+              </div>
+              <div class="pane-edit-body">
+                <input
+                  v-model="editTitle"
+                  class="pane-edit-title"
+                  placeholder="标题"
+                />
+                <textarea
+                  v-model="editContent"
+                  class="pane-edit-content"
+                  placeholder="使用 Markdown 书写正文..."
+                ></textarea>
+              </div>
+              <div class="pane-edit-footer">
+                <van-button size="small" plain @click="cancelEdit">取消</van-button>
+                <van-button
+                  size="small"
+                  type="primary"
+                  :loading="saving"
+                  @click="saveQuickEdit"
+                >保存</van-button>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="pane-empty">
+            <div class="pane-empty-icon">📄</div>
+            <p>从左侧选择一篇笔记查看详情</p>
+          </div>
+        </aside>
+      </div>
     </div>
 
     <!-- 移动端：抽屉（包含分类与标签） -->
@@ -177,7 +250,9 @@ import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { findCategoryById } from '../utils/categoryTree'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
+import { useResponsive } from '../composables/useResponsive'
 import CategoryNav from '../components/CategoryNav.vue'
+import MarkdownBody from '../components/MarkdownBody.vue'
 
 defineOptions({ name: 'NotesList' })
 
@@ -185,6 +260,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const theme = useThemeStore()
+const { isDesktop } = useResponsive()
 
 // 使用 computed：auto 模式下当系统从 light→dark（或用户手动切 mode）时，
 // 卡片背景色也会实时切换，不需要重新拉列表。
@@ -325,6 +401,10 @@ function resetList() {
   notes.value = []
   currentPage.value = 1
   listFinished.value = false
+  // 切换视图时清空右栏选中态，待新列表加载后由 fetchPage 重新默认选中
+  selectedNoteId.value = null
+  detailNote.value = null
+  editMode.value = false
 }
 
 async function loadNotes() {
@@ -346,6 +426,10 @@ async function fetchPage() {
   const res = await http.get('/notes', { params })
   notes.value.push(...res.items)
   if (!res.hasMore) listFinished.value = true
+  // 桌面端：首次加载（当前页=1）后默认选中第一篇，右栏立即有内容
+  if (isDesktop.value && currentPage.value === 1 && !selectedNoteId.value && notes.value.length > 0) {
+    selectNote(notes.value[0].id)
+  }
 }
 
 // 侧栏 / 抽屉选择分类：v-model 更新后触发加载
@@ -430,12 +514,118 @@ function onRefresh() {
 }
 
 function goDetail(id) {
+  // 桌面端：右栏就地预览；移动端：跳转详情页
+  if (isDesktop.value) {
+    selectNote(id)
+    return
+  }
   router.push(`/notes/${id}`)
 }
 
 function goEdit(n) {
   const id = typeof n === 'object' ? n.id : n
+  // 桌面端：右栏就地切换为快速编辑
+  if (isDesktop.value) {
+    selectNote(id, { edit: true })
+    return
+  }
   router.push(`/notes/${id}/edit`)
+}
+
+// ========== 右栏：预览 / 快速编辑双态 ==========
+const selectedNoteId = ref(null)
+const detailNote = ref(null)
+const detailLoading = ref(false)
+const editMode = ref(false)
+const editTitle = ref('')
+const editContent = ref('')
+const saving = ref(false)
+
+// 选中并加载笔记详情（可指定是否直接进入编辑态）
+async function selectNote(id, opts = {}) {
+  if (selectedNoteId.value === id && !opts.edit) {
+    // 已选中同一篇且非编辑请求，仅退出编辑态回到预览
+    editMode.value = false
+    return
+  }
+  selectedNoteId.value = id
+  editMode.value = !!opts.edit
+  detailLoading.value = true
+  try {
+    const d = await http.get(`/notes/${id}`)
+    detailNote.value = d
+    editTitle.value = d.title || ''
+    editContent.value = d.content || ''
+    if (opts.edit) {
+      // 进入编辑态时，若已删除/加载失败则回退
+    }
+  } catch {
+    detailNote.value = null
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+// 进入编辑态（从预览态点「编辑」）
+function enterEdit() {
+  if (!detailNote.value) return
+  editTitle.value = detailNote.value.title || ''
+  editContent.value = detailNote.value.content || ''
+  editMode.value = true
+}
+
+// 取消编辑，回到预览态（丢弃未保存修改）
+function cancelEdit() {
+  editMode.value = false
+  editTitle.value = detailNote.value?.title || ''
+  editContent.value = detailNote.value?.content || ''
+}
+
+// 保存快速编辑（仅标题 + 正文；分类/标签/颜色原样回传，避免被清空）
+async function saveQuickEdit() {
+  if (!detailNote.value || saving.value) return
+  const d = detailNote.value
+  saving.value = true
+  try {
+    // 标签 name → id 映射（与 NoteEdit 一致），未匹配到的忽略
+    const tagIds = (d.tags || [])
+      .map((name) => tags.value.find((t) => t.name === name)?.id)
+      .filter(Boolean)
+    await http.put(`/notes/${d.id}`, {
+      title: editTitle.value,
+      content: editContent.value,
+      categoryId: d.categoryId ?? null,
+      tagIds,
+      backgroundColor: d.backgroundColor ?? null,
+      isPinned: d.isPinned ?? false
+    })
+    // PUT 返回 204 NoContent，本地同步更新详情与列表项
+    const now = new Date().toISOString()
+    const preview = makePreview(editContent.value)
+    detailNote.value = { ...d, title: editTitle.value, content: editContent.value, updatedAt: now }
+    const listItem = notes.value.find((n) => n.id === d.id)
+    if (listItem) {
+      listItem.title = editTitle.value
+      listItem.contentPreview = preview
+      listItem.updatedAt = now
+    }
+    editMode.value = false
+    showToast('已保存')
+  } catch {
+    // 错误由拦截器提示
+  } finally {
+    saving.value = false
+  }
+}
+
+// 生成与后端 contentPreview 一致的 120 字预览（去除空白与 Markdown 标记）
+function makePreview(content) {
+  const text = (content || '')
+    .replace(/```[\s\S]*?```/g, ' ')   // 去代码块
+    .replace(/[#>*`~\-\[\]()!|]/g, ' ') // 去 Markdown 标记
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > 120 ? text.slice(0, 120) + '…' : text
 }
 
 async function onDelete(note) {
@@ -443,6 +633,12 @@ async function onDelete(note) {
     await showConfirmDialog({ title: '删除笔记', message: `确定删除「${note.title || '无标题'}」吗？` })
     await http.delete(`/notes/${note.id}`)
     notes.value = notes.value.filter((n) => n.id !== note.id)
+    // 若删除的是右栏当前选中笔记，清空右栏
+    if (selectedNoteId.value === note.id) {
+      selectedNoteId.value = null
+      detailNote.value = null
+      editMode.value = false
+    }
     showToast('已删除')
   } catch {
     // 取消
@@ -811,15 +1007,35 @@ onActivated(() => {
   .layout {
     padding: 16px 24px;
   }
+  /* 三栏骨架：中栏列表 + 右栏预览/编辑 */
+  .notes-desktop-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
   .content {
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
+    flex: 1;
     min-width: 0;
+    max-width: none;
+    margin: 0;
+  }
+  .preview-pane {
+    width: 480px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 72px;
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
   }
   .notes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 16px;
     padding: 8px 0 24px;
   }
@@ -836,9 +1052,170 @@ onActivated(() => {
     display: inline-flex;
     opacity: 1;
   }
+  .notes-grid-item.is-selected {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary);
+  }
   .note-card {
     cursor: pointer;
     height: 100%;
   }
+}
+
+/* ========== 右栏预览 / 快速编辑面板 ========== */
+.pane-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.pane-preview,
+.pane-edit {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.pane-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pane-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pane-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pane-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.pane-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.pane-cat {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.pane-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 80px 20px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.pane-empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+/* 快速编辑态 */
+.pane-edit-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  gap: 10px;
+}
+
+.pane-edit-title {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.pane-edit-title:focus {
+  border-color: var(--color-primary);
+}
+
+.pane-edit-content {
+  flex: 1;
+  min-height: 240px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.7;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.pane-edit-content:focus {
+  border-color: var(--color-primary);
+}
+
+.pane-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
 }
 </style>
