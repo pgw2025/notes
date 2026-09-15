@@ -63,6 +63,26 @@ export function getCategoryPath(tree, id) {
 }
 
 /**
+ * 获取某分类的完整面包屑节点列表（从顶级到当前节点）。
+ * @param {Array} tree 树形分类数组
+ * @param {number|string} id
+ * @returns {Array<object>} 节点数组
+ */
+export function getCategoryBreadcrumbs(tree, id) {
+  const parts = []
+  let currentId = id
+  const visited = new Set()
+  while (currentId !== null && currentId !== undefined && !visited.has(currentId)) {
+    visited.add(currentId)
+    const node = findCategoryById(tree, currentId)
+    if (!node) break
+    parts.unshift(node)
+    currentId = node.parentId
+  }
+  return parts
+}
+
+/**
  * 收集树中所有节点的 id（含子孙），用于「父分类包含子分类」等判断。
  * @param {object} node 单个分类节点
  * @returns {number[]}

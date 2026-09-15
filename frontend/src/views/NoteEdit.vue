@@ -1316,6 +1316,10 @@ async function loadData() {
     pendingChanges = false
     updateDocumentTitle()
   } else {
+    if (route.query.categoryId) {
+      const qCatId = parseInt(route.query.categoryId)
+      if (!isNaN(qCatId)) form.categoryId = qCatId
+    }
     saveStatus.value = 'idle'
     pendingChanges = false
     updateDocumentTitle()

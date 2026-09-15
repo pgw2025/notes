@@ -2,8 +2,12 @@
   <div class="cat-node">
     <div
       class="cat-node-row"
-      :style="{ paddingLeft: depth * 24 + 'px' }"
-      @click="onOpen"
+      :class="{
+        'is-active': isDesktop && activeId === node.id,
+        'is-desktop': isDesktop
+      }"
+      :style="{ paddingLeft: (depth * (isDesktop ? 16 : 20) + 12) + 'px' }"
+      @click="onRowClick"
     >
       <!-- 展开/折叠箭头（有子分类时显示） -->
       <span
@@ -11,24 +15,25 @@
         class="cat-node-toggle"
         :class="{ expanded: isExpanded }"
         @click.stop="emit('toggle', node.id)"
+        title="折叠/展开"
       >
         <van-icon name="arrow" size="12" />
       </span>
       <span v-else class="cat-node-toggle-placeholder"></span>
 
-      <span class="cat-node-icon">📁</span>
-      <span class="cat-node-name">{{ node.name }}</span>
-      <span class="cat-node-count">{{ node.noteCount }} 篇</span>
+      <span class="cat-node-icon">{{ isDesktop && activeId === node.id ? '📂' : '📁' }}</span>
+      <span class="cat-node-name" :title="node.name">{{ node.name }}</span>
+      <span class="cat-node-count">{{ node.noteCount }}</span>
 
       <div class="cat-node-actions" @click.stop>
         <button class="cat-btn" title="新建子分类" @click="emit('add-child', node)">
-          <van-icon name="plus" size="14" />
+          <van-icon name="plus" size="13" />
         </button>
-        <button class="cat-btn" title="编辑" @click="emit('edit', node)">
-          <van-icon name="edit" size="14" />
+        <button class="cat-btn" title="编辑分类" @click="emit('edit', node)">
+          <van-icon name="edit" size="13" />
         </button>
-        <button class="cat-btn btn-del" title="删除" @click="emit('delete', node)">
-          <van-icon name="delete-o" size="14" />
+        <button class="cat-btn btn-del" title="删除分类" @click="emit('delete', node)">
+          <van-icon name="delete-o" size="13" />
         </button>
       </div>
     </div>
@@ -41,11 +46,14 @@
         :node="child"
         :depth="depth + 1"
         :expanded="expanded"
+        :active-id="activeId"
+        :is-desktop="isDesktop"
         @toggle="(id) => emit('toggle', id)"
         @add-child="(n) => emit('add-child', n)"
         @edit="(n) => emit('edit', n)"
         @delete="(n) => emit('delete', n)"
         @open="(id) => emit('open', id)"
+        @select="(n) => emit('select', n)"
       />
     </template>
   </div>
@@ -57,20 +65,26 @@ import { computed } from 'vue'
 const props = defineProps({
   node: { type: Object, required: true },
   depth: { type: Number, default: 0 },
-  expanded: { type: Set, required: true }
+  expanded: { type: Set, required: true },
+  activeId: { type: [Number, String], default: null },
+  isDesktop: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['toggle', 'add-child', 'edit', 'delete', 'open'])
+const emit = defineEmits(['toggle', 'add-child', 'edit', 'delete', 'open', 'select'])
 
 const hasChildren = computed(() => props.node.children && props.node.children.length > 0)
 const isExpanded = computed(() => props.expanded.has(props.node.id))
 
-function onOpen() {
-  // 有子分类：点击展开/折叠子分类；无子分类（叶子）：跳转到笔记列表
-  if (hasChildren.value) {
-    emit('toggle', props.node.id)
+function onRowClick() {
+  if (props.isDesktop) {
+    emit('select', props.node)
   } else {
-    emit('open', props.node.id)
+    // 移动端：有子分类展开/折叠，无子分类跳转到列表
+    if (hasChildren.value) {
+      emit('toggle', props.node.id)
+    } else {
+      emit('open', props.node.id)
+    }
   }
 }
 </script>
@@ -79,20 +93,28 @@ function onOpen() {
 .cat-node-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 9px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.16s ease;
   font-size: 14px;
   color: var(--text-primary);
+  user-select: none;
 }
 
 .cat-node-row:hover {
   background: var(--surface-2);
+  border-color: var(--border-hover, var(--border));
+}
+
+.cat-node-row.is-active {
+  background: rgba(15, 169, 140, 0.08);
   border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .cat-node-toggle {
@@ -104,6 +126,11 @@ function onOpen() {
   color: var(--text-tertiary);
   transition: transform 0.2s ease;
   flex-shrink: 0;
+  border-radius: 4px;
+}
+.cat-node-toggle:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
 }
 
 .cat-node-toggle.expanded {
@@ -117,8 +144,9 @@ function onOpen() {
 }
 
 .cat-node-icon {
-  font-size: 16px;
+  font-size: 15px;
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .cat-node-name {
@@ -126,22 +154,28 @@ function onOpen() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
 }
 
 .cat-node-count {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
   background: var(--surface-2);
   border-radius: 999px;
-  padding: 0 8px;
+  padding: 0 7px;
   line-height: 18px;
+  height: 18px;
   flex-shrink: 0;
+  font-weight: 500;
+}
+
+.cat-node-row.is-active .cat-node-count {
+  background: rgba(15, 169, 140, 0.16);
+  color: var(--color-primary);
 }
 
 .cat-node-actions {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -158,9 +192,9 @@ function onOpen() {
 }
 
 .cat-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
   border: none;
   background: var(--surface-2);
   color: var(--text-secondary);
