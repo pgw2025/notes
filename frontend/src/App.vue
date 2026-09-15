@@ -67,11 +67,14 @@
         :icon="item.icon"
       >{{ item.label }}</van-tabbar-item>
     </van-tabbar>
+
+    <!-- 全局命令面板 (Ctrl+K / Cmd+K) -->
+    <CommandPalette v-model:show="showPalette" />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import { useResponsive } from './composables/useResponsive'
@@ -79,6 +82,7 @@ import { useThemeStore } from './stores/theme'
 import { useTagStore } from './stores/tag'
 import { useOfflineStore } from './stores/offline'
 import SidebarTags from './components/SidebarTags.vue'
+import CommandPalette from './components/CommandPalette.vue'
 
 const route = useRoute()
 const theme = useThemeStore()
@@ -86,13 +90,27 @@ const tagStore = useTagStore()
 const offline = useOfflineStore()
 const { isDesktop } = useResponsive()
 
+const showPalette = ref(false)
+
 onMounted(() => {
   offline.init()
   const token = localStorage.getItem('token')
   if (token) {
     tagStore.fetchTags()
   }
+  window.addEventListener('keydown', handleGlobalKey)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKey)
+})
+
+function handleGlobalKey(e) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault()
+    showPalette.value = true
+  }
+}
 
 // 当切换页面时（如创建新笔记或在编辑页添加标签后返回），同步刷新侧栏标签列表
 watch(

@@ -113,7 +113,9 @@ public class NotesController : ControllerBase
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Where(n => n.UserId == UserId &&
                 (EF.Functions.Collate(n.Title, "utf8mb4_general_ci").Contains(term) ||
-                 EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term)));
+                 EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term) ||
+                 n.NoteTags.Any(nt =>
+                     EF.Functions.Collate(nt.Tag.Name, "utf8mb4_general_ci").Contains(term))));
 
         var totalCount = await query.CountAsync();
 
@@ -129,6 +131,40 @@ public class NotesController : ControllerBase
         var hasMore = (page - 1) * pageSize + items.Count < totalCount;
 
         return Ok(new NoteListResponseDto(items, totalCount, page, pageSize, hasMore));
+    }
+
+    [HttpGet("quicksearch")]
+    public async Task<ActionResult<NoteListResponseDto>> QuickSearch(
+        [FromQuery] string q, [FromQuery] int pageSize = 8)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+            return Ok(new NoteListResponseDto(new List<NoteListItemDto>(), 0, 1, pageSize, false));
+
+        if (pageSize < 1 || pageSize > 100) pageSize = 8;
+
+        var userDefaultColor = await GetUserDefaultColorAsync();
+        var term = q.Trim();
+
+        var query = _db.Notes
+            .Include(n => n.Category)
+            .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
+            .Where(n => n.UserId == UserId &&
+                (EF.Functions.Collate(n.Title, "utf8mb4_general_ci").Contains(term) ||
+                 EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term) ||
+                 n.NoteTags.Any(nt =>
+                     EF.Functions.Collate(nt.Tag.Name, "utf8mb4_general_ci").Contains(term))));
+
+        var totalCount = await query.CountAsync();
+
+        var notes = await query
+            .OrderByDescending(n => n.UpdatedAt)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = notes.Select(n => MapToListItem(n, userDefaultColor)).ToList();
+        var hasMore = items.Count < totalCount;
+
+        return Ok(new NoteListResponseDto(items, totalCount, 1, pageSize, hasMore));
     }
 
     [HttpGet("timeline")]
