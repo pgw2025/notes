@@ -396,6 +396,7 @@ import { useThemeStore } from '../stores/theme'
 import { useTagStore } from '../stores/tag'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { flattenCategories, findCategoryById } from '../utils/categoryTree'
+import { compressImage } from '../utils/compressImage'
 
 const route = useRoute()
 const router = useRouter()
@@ -1668,11 +1669,13 @@ async function handleImageFile(file) {
     if (!ok) return
   }
   try {
+    const compressed = await compressImage(file)
+    const savedBytes = file.size - (compressed?.size || 0)
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', compressed || file)
     const res = await http.post(`/notes/${effectiveNoteId.value}/attachments`, fd)
     insert(`\n![${res.fileName || '图片'}](/api/attachments/${res.id})\n`)
-    showToast('图片已插入')
+    showToast(savedBytes > 0 ? `已压缩 -${Math.round(savedBytes / 1024)}KB` : '图片已插入')
   } catch {
     // 拦截器提示
   }
