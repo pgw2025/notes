@@ -245,7 +245,8 @@ const props = defineProps({
 
 const emit = defineEmits(['select', 'expand', 'close'])
 
-const { isMobile } = useResponsive()
+const { isDesktop } = useResponsive()
+const isMobile = computed(() => !isDesktop.value)
 
 const {
   loading,
@@ -564,9 +565,9 @@ watch(() => props.initialRange, (val) => {
 
 .heatmap-svg {
   display: block;
-  min-width: 850px;
   width: 100%;
   height: auto;
+  min-height: 112px;
 }
 
 .hm-month {
