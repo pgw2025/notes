@@ -2297,20 +2297,36 @@ watch(isStageFullscreen, (v) => {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
+  padding-right: 36px;
 }
 .note-title {
   font-size: 15px;
   font-weight: 700;
   line-height: 1.4;
   word-break: break-word;
+  min-width: 0;
+  flex: 1;
 }
 .card-hover-actions {
-  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: opacity 0.15s ease;
+  z-index: 3;
 }
 .desktop-note-card-item:hover .card-hover-actions {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 .card-action-btn {
   width: 24px;
