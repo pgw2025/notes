@@ -979,7 +979,7 @@ async function confirmRestoreVersion(v) {
 async function onTogglePin(note) {
   const nextPinned = !note.isPinned
   try {
-    await http.put(`/notes/${note.id}/pin`, { isPinned: nextPinned })
+    await http.post(nextPinned ? `/notes/${note.id}/pin` : `/notes/${note.id}/unpin`)
     note.isPinned = nextPinned
     if (detailNote.value && detailNote.value.id === note.id) {
       detailNote.value.isPinned = nextPinned
@@ -2342,6 +2342,14 @@ watch(isStageFullscreen, (v) => {
 }
 :global(body.dark) .card-action-btn {
   background: rgba(255, 255, 255, 0.12);
+}
+.card-action-btn:hover {
+  background: rgba(25, 137, 250, 0.16);
+  color: #1989fa;
+}
+:global(body.dark) .card-action-btn:hover {
+  background: rgba(25, 137, 250, 0.3);
+  color: #4fc3f7;
 }
 .card-action-btn.btn-danger:hover {
   background: rgba(239, 68, 68, 0.2);

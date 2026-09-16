@@ -734,7 +734,7 @@ function goAllNotes() {
 // 快速置顶笔记
 async function onTogglePin(note) {
   try {
-    const res = await http.patch(`/notes/${note.id}/pin`)
+    const res = await http.post(note.isPinned ? `/notes/${note.id}/unpin` : `/notes/${note.id}/pin`)
     note.isPinned = res.isPinned
     showToast(note.isPinned ? '已置顶' : '已取消置顶')
   } catch {
