@@ -81,6 +81,7 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../api/http'
 import { useThemeStore } from '../stores/theme'
+import { useAuthStore } from '../stores/auth'
 import { formatTime } from '../utils/format'
 
 const props = defineProps({
@@ -90,6 +91,7 @@ const emit = defineEmits(['update:show', 'navigate'])
 
 const router = useRouter()
 const theme = useThemeStore()
+const auth = useAuthStore()
 
 const keyword = ref('')
 const noteResults = ref([])
@@ -99,21 +101,40 @@ const inputRef = ref(null)
 
 let debounceTimer = null
 
-const commands = [
-  { id: 'new-note', icon: 'plus', label: '新建笔记', hint: 'N', action: () => router.push('/notes/new') },
-  { id: 'timeline', icon: 'clock-o', label: '时间线', action: () => router.push('/timeline') },
-  { id: 'categories', icon: 'apps-o', label: '分类工作台', action: () => router.push('/categories') },
-  { id: 'search', icon: 'search', label: '搜索中心', action: () => router.push('/search') },
-  { id: 'settings', icon: 'contact', label: '偏好设置', action: () => router.push('/settings') },
-  { id: 'theme-light', icon: 'sun-o', label: '浅色模式', action: () => theme.setMode('light') },
-  { id: 'theme-dark', icon: 'moon-o', label: '深色模式', action: () => theme.setMode('dark') },
-  { id: 'theme-auto', icon: 'desktop-o', label: '跟随系统', action: () => theme.setMode('auto') }
+const isAdmin = computed(() => {
+  return auth.user?.roles?.includes('Admin') || auth.user?.isAdmin === true
+})
+
+const baseCommands = [
+  { id: 'new-note', icon: 'plus', label: '新建笔记', hint: '⌘N', action: () => router.push('/notes/new') },
+  { id: 'notes', icon: 'notes-o', label: '全部笔记工作台', hint: '', action: () => router.push('/notes') },
+  { id: 'timeline', icon: 'clock-o', label: '时间线视图', hint: '', action: () => router.push('/timeline') },
+  { id: 'categories', icon: 'apps-o', label: '分类与标签', hint: '', action: () => router.push('/categories') },
+  { id: 'search', icon: 'search', label: '全文搜索中心', hint: '', action: () => router.push('/search') },
+  { id: 'settings', icon: 'contact', label: '偏好设置', hint: '', action: () => router.push('/settings') },
+  { id: 'theme-light', icon: 'sun-o', label: '切换浅色模式', hint: '', action: () => theme.setMode('light') },
+  { id: 'theme-dark', icon: 'moon-o', label: '切换深色模式', hint: '', action: () => theme.setMode('dark') },
+  { id: 'theme-auto', icon: 'desktop-o', label: '跟随系统主题', hint: '', action: () => theme.setMode('auto') }
 ]
+
+const commands = computed(() => {
+  const list = [...baseCommands]
+  if (isAdmin.value) {
+    list.push({
+      id: 'admin',
+      icon: 'shield-o',
+      label: '系统管理后台',
+      hint: 'Admin',
+      action: () => window.open('/admin/', '_blank')
+    })
+  }
+  return list
+})
 
 const filteredCommands = computed(() => {
   const q = keyword.value.trim().toLowerCase()
-  if (!q) return commands
-  return commands.filter((c) => c.label.toLowerCase().includes(q))
+  if (!q) return commands.value
+  return commands.value.filter((c) => c.label.toLowerCase().includes(q))
 })
 
 const totalItems = computed(() => filteredCommands.value.length + noteResults.value.length)
