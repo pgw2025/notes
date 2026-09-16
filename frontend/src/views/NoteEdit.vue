@@ -322,6 +322,7 @@
             <span class="mt-label">🖼️</span>
           </button>
 
+          <!-- 键盘弹出时「更多」按钮仍常驻可见、可点选 -->
           <button type="button" class="mt-action-btn" :class="{ 'is-active': activeMobileMenu === 'more' }"
             @click="toggleMobileMenu('more')" title="更多工具">
             <span class="mt-label">···</span>
@@ -953,11 +954,12 @@ function applyFloat(type) {
   })
 }
 
-// =============== P1-6 动态样式（软键盘高度影响 textarea padding 与吸底工具栏位置） ===============
+// =============== P1-6 动态样式（软键盘高度影响 textarea padding 与工具栏固定悬浮位置） ===============
 const textareaDynamicStyle = computed(() => {
   if (isDesktop.value) return {}
+  // 工具栏 position:fixed 悬浮，编辑区不再需要为其让出纵向空间；仅保留少量底部内边距
   return {
-    paddingBottom: `${90 + keyboardHeight.value}px`
+    paddingBottom: '12px'
   }
 })
 
@@ -966,9 +968,12 @@ const mobileToolbarStyle = computed(() => {
   const safeBottom = typeof window !== 'undefined'
     ? (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-bottom')) || 0)
     : 0
+  // 键盘弹出：工具栏贴到键盘可视区顶部；键盘收起：回落到底部安全区上方
   return {
-    bottom: `${keyboardHeight.value}px`,
-    paddingBottom: `calc(8px + env(safe-area-inset-bottom, ${safeBottom}px) + ${keyboardHeight.value > 0 ? 4 : 0}px)`
+    bottom: keyboardHeight.value > 0
+      ? `${keyboardHeight.value}px`
+      : `calc(${safeBottom}px)`,
+    paddingBottom: '8px'
   }
 })
 
