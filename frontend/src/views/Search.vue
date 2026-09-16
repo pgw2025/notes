@@ -4,33 +4,33 @@
 
     <!-- ==================== 桌面端：双栏即时检索 + Markdown 预览 ==================== -->
     <div v-if="isDesktop" class="search-desktop">
-      <!-- 宽屏顶栏：宽幅搜索框 + 热门标签快速检索气泡 -->
-      <div class="search-desktop-topbar">
-        <van-search
-          v-model="keyword"
-          placeholder="搜索笔记标题、内容或标签..."
-          shape="round"
-          clearable
-          class="desktop-search-input"
-          @search="onSearch"
-          @clear="onClear"
-          @keyup.enter="onSearch"
-        />
-        <div v-if="popularTags.length" class="hot-tag-chips">
-          <button
-            v-for="t in popularTags"
-            :key="t.id"
-            class="chip-btn"
-            @click="quickSearch(t.name)"
-          >
-            <span class="chip-hash">#</span> {{ t.name }}
-          </button>
-        </div>
-      </div>
-
       <div class="search-desktop-body">
         <!-- 左栏：结果流 (440px) -->
         <aside class="results-pane">
+          <!-- 搜索框 + 热门标签移入左栏顶部，宽度与结果流对齐 -->
+          <div class="search-pane-header">
+            <van-search
+              v-model="keyword"
+              placeholder="搜索笔记标题、内容或标签..."
+              shape="round"
+              clearable
+              class="desktop-search-input"
+              @search="onSearch"
+              @clear="onClear"
+              @keyup.enter="onSearch"
+            />
+            <div v-if="popularTags.length" class="hot-tag-chips">
+              <button
+                v-for="t in popularTags"
+                :key="t.id"
+                class="chip-btn"
+                @click="quickSearch(t.name)"
+              >
+                <span class="chip-hash">#</span> {{ t.name }}
+              </button>
+            </div>
+          </div>
+
           <div v-if="searched" class="results-header">
             <span class="results-count">找到 {{ results.length }} 篇相关笔记</span>
             <span class="results-kw">「{{ currentKeyword }}」</span>
@@ -544,11 +544,11 @@ onMounted(() => {
   background: var(--app-bg);
 }
 
-.search-desktop-topbar {
-  padding: 12px 20px;
-  background: var(--surface);
+/* 左栏顶部的搜索框 + 热门标签区块 */
+.search-pane-header {
+  padding-bottom: 14px;
+  margin-bottom: 4px;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 .desktop-search-input {
