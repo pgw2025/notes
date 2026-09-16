@@ -111,8 +111,49 @@
       @confirm="onDateRangeSelect"
     />
 
-    <!-- 活跃热力图：全年概览，点击格子筛选当天笔记 -->
-    <heatmap class="timeline-heatmap" @select="onHeatmapSelect" />
+    <!-- ============ 完整热力图弹层 ============ -->
+    <!-- 移动端：底部弹层 -->
+    <van-popup
+      v-if="!isDesktop"
+      v-model:show="showHeatmapPopup"
+      position="bottom"
+      round
+      :style="{ maxHeight: '85vh' }"
+      class="heatmap-popup-mobile"
+    >
+      <heatmap
+        mode="full"
+        :in-popup="true"
+        @select="onHeatmapSelect"
+        @close="showHeatmapPopup = false"
+      />
+    </van-popup>
+
+    <!-- 桌面端：居中弹层 -->
+    <van-popup
+      v-if="isDesktop"
+      v-model:show="showHeatmapPopup"
+      position="center"
+      round
+      class="heatmap-popup-desktop"
+    >
+      <heatmap
+        mode="full"
+        :in-popup="true"
+        @select="onHeatmapSelect"
+        @close="showHeatmapPopup = false"
+      />
+    </van-popup>
+
+    <!-- ============ 移动端：月度条形图（替代全宽热力图） ============ -->
+    <div v-if="!isDesktop" class="mobile-heatmap-bar">
+      <heatmap
+        mode="bar"
+        initial-range="3m"
+        @select="onHeatmapSelect"
+        @expand="showHeatmapPopup = true"
+      />
+    </div>
 
     <!-- 时间线主布局：筛选侧栏 + 中间结果 + 详情预览，侧栏/预览常驻，仅中间栏做三态切换 -->
     <div class="timeline-layout">
@@ -126,6 +167,14 @@
             :clearable="true"
             @search="reload"
             @clear="reload"
+          />
+
+          <!-- 热力图（迷你模式） -->
+          <heatmap
+            mode="compact"
+            initial-range="3m"
+            @select="onHeatmapSelect"
+            @expand="showHeatmapPopup = true"
           />
 
           <!-- 已选条件胶囊条 -->
@@ -353,6 +402,7 @@ const { isDesktop } = useResponsive()
 
 const loading = ref(false)
 const timeline = ref({ totalNotes: 0, years: [] })
+const showHeatmapPopup = ref(false)
 
 // ============ 桌面端右栏预览 ============
 const selectedNoteId = ref(null)
@@ -586,6 +636,8 @@ function onHeatmapSelect(date) {
   } else {
     filters.fromDate = date
     filters.toDate = date
+    // 选中日期后关闭弹层（移动端弹层中 Heatmap 组件内部也会触发，这里做双重保障）
+    showHeatmapPopup.value = false
   }
   quickActive.value = 'all'
   drawerFromDate.value = filters.fromDate
@@ -923,8 +975,19 @@ watch(() => filters.keyword, () => {
 }
 
 /* ========== 时间线主体 ========== */
-.timeline-heatmap {
-  padding: 0 12px 4px;
+.mobile-heatmap-bar {
+  padding: 8px 12px 4px;
+}
+
+/* 热力图弹层 */
+.heatmap-popup-mobile :deep(.van-popup) {
+  border-radius: 16px 16px 0 0;
+}
+
+.heatmap-popup-desktop :deep(.van-popup) {
+  width: 920px;
+  max-width: 94vw;
+  border-radius: 14px;
 }
 
 .timeline {
@@ -1111,9 +1174,6 @@ watch(() => filters.keyword, () => {
     border-radius: 0 0 8px 8px;
     margin: 0 0 12px;
     padding: 12px 16px;
-  }
-  .timeline-heatmap {
-    padding: 0 16px 4px;
   }
   .notes-list {
     display: grid;
