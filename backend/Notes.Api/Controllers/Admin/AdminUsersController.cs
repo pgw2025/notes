@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -178,6 +179,41 @@ public class AdminUsersController : ControllerBase
         return s.All(c => char.IsAsciiLetterOrDigit(c) || c == '_' || c == '-');
     }
 
+    /// <summary>管理员修改指定用户邮箱（空值/空白视为清除邮箱，与注册时"选填"语义一致）</summary>
+    [HttpPut("{id}/email")]
+    public async Task<IActionResult> UpdateEmail(string id, [FromBody] UpdateEmailDto dto)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null) return NotFound();
+
+        var newEmail = string.IsNullOrWhiteSpace(dto.NewEmail) ? null : dto.NewEmail.Trim();
+        if (string.Equals(user.Email, newEmail, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "新邮箱与当前邮箱相同" });
+
+        if (newEmail != null)
+        {
+            if (!IsValidEmail(newEmail))
+                return BadRequest(new { message = "邮箱格式不正确" });
+            if (await _userManager.FindByEmailAsync(newEmail) != null)
+                return Conflict(new { message = "该邮箱已被注册" });
+        }
+
+        // 行为日志：记录被操作用户名快照（供 Filter 读取）
+        HttpContext.Items["Activity:TargetUserName"] = user.UserName;
+
+        var result = await _userManager.SetEmailAsync(user, newEmail);
+        if (!result.Succeeded)
+            return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
+
+        return Ok(new { user.Id, Email = user.Email });
+    }
+
+    /// <summary>邮箱格式校验（与注册规则一致）</summary>
+    private static readonly Regex EmailPattern = new(@"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+
+    private static bool IsValidEmail(string s)
+        => !string.IsNullOrEmpty(s) && EmailPattern.IsMatch(s);
+
     private static bool IsLockedOut(ApplicationUser user)
         => user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow;
 
@@ -243,3 +279,5 @@ public record SetStatusDto(bool Locked);
 public record ResetPasswordDto(string NewPassword);
 
 public record UpdateUserNameDto(string NewUserName);
+
+public record UpdateEmailDto(string? NewEmail);

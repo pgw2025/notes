@@ -30,9 +30,14 @@
                 </el-avatar>
                 <div class="user-names">
                   <div class="user-nick">{{ row.displayName || '-' }}</div>
-                  <div class="user-mail">{{ row.email || '未设置' }}</div>
                 </div>
               </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column label="邮箱" min-width="170" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="user-mail">{{ row.email || '未设置' }}</span>
             </template>
           </el-table-column>
 
@@ -64,11 +69,14 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="300" align="center" fixed="right">
+          <el-table-column label="操作" width="360" align="center" fixed="right">
             <template #default="{ row }">
               <div class="table-actions">
                 <el-button size="small" type="primary" link @click="openRename(row)">
                   改名
+                </el-button>
+                <el-button size="small" type="primary" link @click="openEmail(row)">
+                  改邮箱
                 </el-button>
                 <el-button
                   size="small"
@@ -140,6 +148,9 @@
           <div class="mobile-card-actions">
             <el-button size="small" type="primary" plain @click="openRename(user)">
               改名
+            </el-button>
+            <el-button size="small" type="primary" plain @click="openEmail(user)">
+              改邮箱
             </el-button>
             <el-button
               size="small"
@@ -226,6 +237,28 @@
         <el-button type="primary" :loading="renameLoading" @click="handleRename">确认修改</el-button>
       </template>
     </el-dialog>
+
+    <!-- Update Email Dialog -->
+    <el-dialog v-model="emailDialog" title="修改邮箱" width="420px">
+      <el-form ref="emailFormRef" :model="emailForm" :rules="emailRules" label-position="top">
+        <div class="target-user-tip">
+          将用户 <strong>{{ emailTarget?.displayName || emailTarget?.email }}</strong> 的邮箱
+          <template v-if="emailTarget?.email">「{{ emailTarget.email }}」</template>
+          修改为（留空表示清除邮箱）：
+        </div>
+        <el-form-item label="新邮箱" prop="newEmail">
+          <el-input
+            v-model="emailForm.newEmail"
+            placeholder="请输入新邮箱，留空则清除"
+            maxlength="100"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="emailDialog = false">取消</el-button>
+        <el-button type="primary" :loading="emailLoading" @click="handleEmail">确认修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -283,6 +316,29 @@ const renameRules = {
       validator: (rule, value, callback) => {
         if (value && !/^[A-Za-z0-9_-]+$/.test(value)) {
           callback(new Error('仅支持字母、数字、下划线或短横线'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
+const emailDialog = ref(false)
+const emailLoading = ref(false)
+const emailTarget = ref(null)
+const emailFormRef = ref()
+const emailForm = reactive({
+  newEmail: ''
+})
+
+const emailRules = {
+  newEmail: [
+    {
+      validator: (rule, value, callback) => {
+        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          callback(new Error('邮箱格式不正确'))
         } else {
           callback()
         }
@@ -356,6 +412,12 @@ function openRename(user) {
   renameDialog.value = true
 }
 
+function openEmail(user) {
+  emailTarget.value = user
+  emailForm.newEmail = ''
+  emailDialog.value = true
+}
+
 function viewActivity(user) {
   router.push({ name: 'activities', query: { userId: user.id } })
 }
@@ -390,6 +452,23 @@ async function handleRename() {
     ElMessage.error(err.message || '修改用户名失败')
   } finally {
     renameLoading.value = false
+  }
+}
+
+async function handleEmail() {
+  await emailFormRef.value.validate()
+  emailLoading.value = true
+  try {
+    await http.put(`/admin/users/${emailTarget.value.id}/email`, {
+      newEmail: emailForm.newEmail
+    })
+    ElMessage.success('邮箱修改成功')
+    emailDialog.value = false
+    loadUsers()
+  } catch (err) {
+    ElMessage.error(err.message || '修改邮箱失败')
+  } finally {
+    emailLoading.value = false
   }
 }
 
