@@ -446,6 +446,10 @@ const { isDesktop } = useResponsive()
 const auth = useAuthStore()
 const theme = useThemeStore()
 
+// 当前生效主题是否深色（与 NotesList.vue 保持同构）
+// 注：必须用 computed 包一层，才能让 cardStyle / tagStyle 在渲染期正确订阅主题变化
+const isDarkEffective = computed(() => theme.isDarkEffective)
+
 const list = ref([])
 const showForm = ref(false)
 const formName = ref('')
@@ -758,7 +762,7 @@ async function onDeleteNote(note) {
 
 // 笔记卡片样式
 function cardStyle(n) {
-  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, theme.isDark)
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, isDarkEffective.value)
   const fg = getContrastColor(bg)
   return {
     backgroundColor: bg,
@@ -768,7 +772,7 @@ function cardStyle(n) {
 }
 
 function tagStyle(n) {
-  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, theme.isDark)
+  const bg = resolveNoteColor(n.backgroundColor, auth.user?.defaultNoteColor, isDarkEffective.value)
   const isDarkBg = isDarkColor(bg)
   return {
     background: isDarkBg ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.06)',
