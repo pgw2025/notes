@@ -111,6 +111,9 @@
       @confirm="onDateRangeSelect"
     />
 
+    <!-- 活跃热力图：全年概览，点击格子筛选当天笔记 -->
+    <heatmap class="timeline-heatmap" @select="onHeatmapSelect" />
+
     <!-- 时间线主布局：筛选侧栏 + 中间结果 + 详情预览，侧栏/预览常驻，仅中间栏做三态切换 -->
     <div class="timeline-layout">
       <!-- ============ 桌面端左侧筛选侧栏（>=1024px）============ -->
@@ -342,6 +345,7 @@ import http from '../api/http'
 import { flattenCategories } from '../utils/categoryTree'
 import { useResponsive } from '../composables/useResponsive'
 import MarkdownBody from '../components/MarkdownBody.vue'
+import Heatmap from '../components/Heatmap.vue'
 import { formatDateTime } from '../utils/format'
 
 const router = useRouter()
@@ -571,6 +575,21 @@ function clearAllFilters() {
   quickActive.value = 'all'
   drawerFromDate.value = ''
   drawerToDate.value = ''
+  reload()
+}
+
+// 热力图点击：选中某天 → 时间线按当天筛选；再次点击同一格取消
+function onHeatmapSelect(date) {
+  if (!date) {
+    filters.fromDate = ''
+    filters.toDate = ''
+  } else {
+    filters.fromDate = date
+    filters.toDate = date
+  }
+  quickActive.value = 'all'
+  drawerFromDate.value = filters.fromDate
+  drawerToDate.value = filters.toDate
   reload()
 }
 
@@ -904,6 +923,10 @@ watch(() => filters.keyword, () => {
 }
 
 /* ========== 时间线主体 ========== */
+.timeline-heatmap {
+  padding: 0 12px 4px;
+}
+
 .timeline {
   padding: 12px 12px 24px;
 }
@@ -1088,6 +1111,9 @@ watch(() => filters.keyword, () => {
     border-radius: 0 0 8px 8px;
     margin: 0 0 12px;
     padding: 12px 16px;
+  }
+  .timeline-heatmap {
+    padding: 0 16px 4px;
   }
   .notes-list {
     display: grid;
