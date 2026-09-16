@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import http from '../api/http'
+import { compressImage } from '../utils/compressImage'
 
 // 清空离线缓存中的用户数据（与 vite.config.js 中 runtimeCaching 的 cacheName 保持一致）。
 // 仅清数据型缓存，保留 app shell 预缓存以加速下次冷启动；防止不同账号在同一设备上串数据。
@@ -62,8 +63,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async uploadAvatar(file) {
+      if (!file) return ''
+      // 头像显示本就很小，压缩到最长边 256px 以减小上传体积
+      const compressed = await compressImage(file, { maxEdge: 256 })
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed || file)
       const res = await http.post('/auth/avatar', fd)
       return res.avatarUrl
     },
