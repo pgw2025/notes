@@ -1107,12 +1107,21 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleStageKeydown)
 })
 
-// 收起态快捷键：Ctrl/Cmd + Shift + → 展开主舞台
+// 主舞台快捷键：Ctrl/Cmd + Shift + → 展开；桌面端 Esc 收右栏并取消选中
 function handleStageKeydown(e) {
   const isCtrlOrCmd = e.ctrlKey || e.metaKey
   if (isCtrlOrCmd && e.shiftKey && e.key === 'ArrowRight') {
     e.preventDefault()
     if (stageCollapsed.value) toggleStageCollapsed()
+    return
+  }
+  // 桌面端按 Esc：收起右栏并取消列表选中
+  if (isDesktop.value && e.key === 'Escape') {
+    if (!stageCollapsed.value) toggleStageCollapsed()
+    if (selectedNoteId.value !== null) {
+      selectedNoteId.value = null
+      detailNote.value = null
+    }
   }
 }
 
