@@ -1,5 +1,5 @@
 <template>
-  <div class="page" :class="{ 'is-desktop': isDesktop, 'is-stage-fullscreen': isStageFullscreen }">
+  <div class="page" :class="{ 'is-desktop': isDesktop, 'is-stage-fullscreen': isStageFullscreen, 'is-stage-collapsed': stageCollapsed }">
     <!-- 移动端顶部导航栏 -->
     <van-nav-bar v-if="!isDesktop" :title="currentCategoryName" class="top-nav-bar">
       <template #left>
@@ -44,6 +44,16 @@
                 <van-icon name="plus" size="14" />
                 <span v-if="!isDesktop">写笔记</span>
               </router-link>
+
+              <!-- 收起态：展开主舞台 -->
+              <button
+                v-if="isDesktop && stageCollapsed"
+                class="toolbar-btn"
+                title="展开主舞台 (Ctrl+Shift+→)"
+                @click="toggleStageCollapsed"
+              >
+                <van-icon name="arrow-left" size="15" />
+              </button>
             </div>
           </div>
 
@@ -212,6 +222,18 @@
           </div>
         </div>
       </aside>
+
+      <!-- 桌面端：中栏与舞台之间的分隔手柄，点击收起/展开舞台 -->
+      <div
+        v-if="isDesktop"
+        class="stage-divider"
+        :class="{ 'is-stage-collapsed': stageCollapsed }"
+        :title="stageCollapsed ? '展开主舞台 (Ctrl+Shift+→)' : '收起主舞台，仅显示笔记列表'"
+        @click="toggleStageCollapsed"
+      >
+        <span class="divider-grip"></span>
+        <span v-if="stageCollapsed" class="expand-capsule" aria-hidden="true"></span>
+      </div>
 
       <!-- ==================== 右栏：主工作舞台 (桌面端) ==================== -->
       <main v-if="isDesktop" class="workbench-main-stage">
@@ -556,7 +578,7 @@
 </template>
 
 <script setup>
-import { ref, onActivated, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, onActivated, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
@@ -691,6 +713,12 @@ const editContent = ref('')
 const saving = ref(false)
 const lastSavedTimeText = ref('')
 const isStageFullscreen = ref(false)
+const stageCollapsed = ref(localStorage.getItem('notes_stage_collapsed') === '1')
+
+function toggleStageCollapsed() {
+  stageCollapsed.value = !stageCollapsed.value
+  localStorage.setItem('notes_stage_collapsed', stageCollapsed.value ? '1' : '0')
+}
 const showColorDropdown = ref(false)
 const contentTextareaRef = ref(null)
 
@@ -1074,7 +1102,21 @@ onMounted(() => {
   loadCategories()
   loadTags()
   loadNotes()
+  window.addEventListener('keydown', handleStageKeydown)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleStageKeydown)
+})
+
+// 收起态快捷键：Ctrl/Cmd + Shift + → 展开主舞台
+function handleStageKeydown(e) {
+  const isCtrlOrCmd = e.ctrlKey || e.metaKey
+  if (isCtrlOrCmd && e.shiftKey && e.key === 'ArrowRight') {
+    e.preventDefault()
+    if (stageCollapsed.value) toggleStageCollapsed()
+  }
+}
 
 watch(
   () => [route.query.categoryId, route.query.tagId],
@@ -1084,6 +1126,14 @@ watch(
     loadNotes()
   }
 )
+
+// 收起舞台与全屏专注（隐藏中栏）方向相反，二者互斥
+watch(stageCollapsed, (v) => {
+  if (v) isStageFullscreen.value = false
+})
+watch(isStageFullscreen, (v) => {
+  if (v) stageCollapsed.value = false
+})
 </script>
 
 <style scoped>
@@ -1119,6 +1169,7 @@ watch(
     background: var(--surface);
     border-right: 1px solid var(--border);
     box-sizing: border-box;
+    transition: width 0.22s ease;
   }
 
   /* 右栏：主工作舞台 */
@@ -1131,11 +1182,101 @@ watch(
     background: var(--app-bg);
     overflow: hidden;
     position: relative;
+    transition: flex 0.22s ease, opacity 0.22s ease;
   }
 
   /* 全屏专注态 */
   .page.is-stage-fullscreen .workbench-list-pane {
     display: none;
+  }
+
+  /* 收起右栏主舞台：收缩为 0 */
+  .page.is-stage-collapsed .workbench-main-stage {
+    flex: 0 0 0;
+    min-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* 收起后：中栏列表铺满整个可用空间 */
+  .page.is-stage-collapsed .workbench-list-pane {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  /* ==== 中栏与舞台之间的分隔手柄 ==== */
+  .stage-divider {
+    flex: 0 0 10px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: transparent;
+    transition: flex-basis 0.22s ease, background 0.15s ease;
+  }
+
+  .stage-divider:hover {
+    background: var(--surface-2);
+  }
+
+  .divider-grip {
+    width: 2px;
+    height: 44px;
+    border-radius: 2px;
+    background: var(--border);
+    opacity: 0.85;
+    transition: background 0.15s ease, opacity 0.15s ease;
+  }
+
+  .stage-divider:hover .divider-grip {
+    background: var(--color-primary);
+    opacity: 1;
+  }
+
+  /* 收起态：收起按钮(展开胶囊)不显示，分隔手柄彻底隐藏 */
+  .page.is-stage-collapsed .stage-divider {
+    flex: 0 0 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .page.is-stage-collapsed .divider-grip {
+    display: none;
+  }
+
+  .page.is-stage-collapsed .expand-capsule {
+    display: none;
+  }
+
+  .expand-capsule {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .expand-capsule::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-top: 2px solid var(--color-primary);
+    border-right: 2px solid var(--color-primary);
+    transform: rotate(45deg);
+    margin-left: -2px;
+  }
+
+  .stage-divider:hover .expand-capsule {
+    transform: scale(1.1);
+    box-shadow: var(--shadow-md);
   }
 }
 
@@ -1385,6 +1526,15 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 收起右栏铺满态：卡片以响应式网格铺满整个空间 */
+.page.is-stage-collapsed .card-list-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  align-content: start;
 }
 
 .desktop-note-card-item {
