@@ -2,126 +2,113 @@
   <div class="page timeline-page">
     <van-nav-bar title="时间线" fixed placeholder />
 
-    <!-- ============ 移动端筛选栏（<1024px）============ -->
+    <!-- ============ 移动端筛选栏（<1024px）：搜索框 + 筛选入口 ============ -->
     <div v-if="!isDesktop" class="filter-bar">
-      <div class="filter-row">
-        <van-button
-          size="small"
-          plain
-          :icon="filterOpen.cats ? 'checked' : 'apps-o'"
-          :type="activeCategoryIds.length ? 'primary' : 'default'"
-          @click="filterOpen.cats = !filterOpen.cats"
-        >
-          {{ activeCategoryIds.length ? `分类(${activeCategoryIds.length})` : '分类' }}
-        </van-button>
-        <van-button
-          size="small"
-          plain
-          :icon="filterOpen.tags ? 'checked' : 'bookmark-o'"
-          :type="activeTagIds.length ? 'primary' : 'default'"
-          @click="filterOpen.tags = !filterOpen.tags"
-        >
-          {{ activeTagIds.length ? `标签(${activeTagIds.length})` : '标签' }}
-        </van-button>
-        <van-button
-          size="small"
-          plain
-          icon="calendar-o"
-          :type="(filters.fromDate || filters.toDate) ? 'primary' : 'default'"
-          @click="filterOpen.dates = !filterOpen.dates"
-        >
-          日期
-        </van-button>
+      <div class="filter-bar-row">
+        <van-search
+          v-model="filters.keyword"
+          placeholder="搜索标题或正文"
+          shape="round"
+          :clearable="true"
+          class="mobile-search"
+          @search="reload"
+          @clear="reload"
+        />
+        <button class="mobile-filter-btn" :class="{ active: hasActiveFilter }" @click="openFilterDrawer">
+          <van-icon name="filter-o" size="16" />
+          <span>筛选</span>
+          <span v-if="filterCount" class="filter-badge">{{ filterCount }}</span>
+        </button>
       </div>
 
-      <van-search
-        v-model="filters.keyword"
-        placeholder="搜索标题或正文"
-        shape="round"
-        :clearable="true"
-        @search="reload"
-        @clear="reload"
-      />
-
-      <!-- 分类多选 -->
-      <div v-if="filterOpen.cats" class="filter-panel">
-        <div class="filter-title">按分类筛选</div>
-        <van-checkbox-group v-model="activeCategoryIds" direction="horizontal">
-          <van-checkbox
-            v-for="c in flatCategories"
-            :key="c.id"
-            :name="c.id"
-            shape="square"
-            class="filter-chip"
-          >{{ c.name }}</van-checkbox>
-        </van-checkbox-group>
-        <div class="filter-actions">
-          <van-button size="mini" plain @click="activeCategoryIds = []; reload()">清空</van-button>
-          <van-button size="mini" type="primary" @click="filterOpen.cats = false; reload()">确定</van-button>
-        </div>
-      </div>
-
-      <!-- 标签多选 -->
-      <div v-if="filterOpen.tags" class="filter-panel">
-        <div class="filter-title">按标签筛选（任意匹配）</div>
-        <van-checkbox-group v-model="activeTagIds" direction="horizontal">
-          <van-checkbox
-            v-for="t in tags"
-            :key="t.id"
-            :name="t.id"
-            shape="square"
-            class="filter-chip"
-          >{{ t.name }}</van-checkbox>
-        </van-checkbox-group>
-        <div class="filter-actions">
-          <van-button size="mini" plain @click="activeTagIds = []; reload()">清空</van-button>
-          <van-button size="mini" type="primary" @click="filterOpen.tags = false; reload()">确定</van-button>
-        </div>
-      </div>
-
-      <!-- 日期范围 -->
-      <div v-if="filterOpen.dates" class="filter-panel">
-        <div class="filter-title">按修改时间范围</div>
-        <div class="date-row">
-          <van-field
-            v-model="filters.fromDate"
-            label="起始"
-            is-link
-            readonly
-            placeholder="点击选择"
-            @click="showFromPicker = true"
-          />
-          <van-field
-            v-model="filters.toDate"
-            label="截止"
-            is-link
-            readonly
-            placeholder="点击选择"
-            @click="showToPicker = true"
-          />
-        </div>
-        <div class="filter-actions">
-          <van-button size="mini" plain @click="filters.fromDate=''; filters.toDate=''; reload()">清空</van-button>
-          <van-button size="mini" type="primary" @click="filterOpen.dates = false; reload()">确定</van-button>
-        </div>
+      <!-- 已选条件胶囊条 -->
+      <div v-if="activeFilters.length" class="mobile-active-filters">
+        <span
+          v-for="(f, i) in activeFilters"
+          :key="i"
+          class="mobile-active-chip"
+          @click="removeFilter(f)"
+        >
+          {{ f.label }} <van-icon name="cross" size="10" />
+        </span>
       </div>
     </div>
 
-    <van-picker
-      v-if="showFromPicker"
-      title="选择起始日期"
-      :columns="dateColumns"
-      :model-value="datePickerValue('from')"
-      @confirm="(v) => onDateConfirm('from', v)"
-      @cancel="showFromPicker = false"
-    />
-    <van-picker
-      v-if="showToPicker"
-      title="选择截止日期"
-      :columns="dateColumns"
-      :model-value="datePickerValue('to')"
-      @confirm="(v) => onDateConfirm('to', v)"
-      @cancel="showToPicker = false"
+    <!-- ============ 移动端筛选抽屉 ============ -->
+    <van-popup
+      v-if="!isDesktop"
+      v-model:show="showFilterDrawer"
+      position="bottom"
+      round
+      :style="{ maxHeight: '82vh' }"
+      class="filter-drawer"
+    >
+      <div class="drawer-header">
+        <span class="drawer-title">筛选</span>
+        <span class="drawer-reset" @click="clearAllFilters">重置</span>
+      </div>
+
+      <div class="drawer-body">
+        <!-- 分类 -->
+        <div class="drawer-section">
+          <div class="drawer-section-title">分类</div>
+          <div class="drawer-chips">
+            <span
+              v-for="c in flatCategories"
+              :key="c.id"
+              class="drawer-chip"
+              :class="{ active: activeCategoryIds.includes(c.id) }"
+              @click="toggleCategoryNoReload(c.id)"
+            >{{ c.name }}</span>
+          </div>
+        </div>
+
+        <!-- 标签 -->
+        <div class="drawer-section">
+          <div class="drawer-section-title">标签（任意匹配）</div>
+          <div class="drawer-chips">
+            <span
+              v-for="t in tags"
+              :key="t.id"
+              class="drawer-chip"
+              :class="{ active: activeTagIds.includes(t.id) }"
+              @click="toggleTagNoReload(t.id)"
+            ># {{ t.name }}</span>
+          </div>
+        </div>
+
+        <!-- 日期 -->
+        <div class="drawer-section">
+          <div class="drawer-section-title">日期范围</div>
+          <div class="drawer-quick-ranges">
+            <span
+              v-for="r in quickRanges"
+              :key="r.key"
+              class="drawer-quick-chip"
+              :class="{ active: quickActive === r.key }"
+              @click="applyQuickRangeNoReload(r.key)"
+            >{{ r.label }}</span>
+          </div>
+          <div class="drawer-date-field" @click="openDateRange">
+            <van-icon name="calendar-o" size="16" />
+            <span class="drawer-date-text">{{ drawerDateText }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        <button class="drawer-apply-btn" @click="applyDrawerFilters">应用筛选</button>
+      </div>
+    </van-popup>
+
+    <!-- 手机端日期范围选择（日历弹层） -->
+    <van-calendar
+      v-model:show="showDateRange"
+      type="range"
+      :min-date="minDate"
+      :max-date="maxDate"
+      :show-confirm="false"
+      @confirm="onDateRangeSelect"
     />
 
     <!-- 时间线主布局：筛选侧栏 + 中间结果 + 详情预览，侧栏/预览常驻，仅中间栏做三态切换 -->
@@ -392,9 +379,98 @@ const tags = ref([])
 // 扁平化分类（树形结构 → 一维，用于筛选 checkbox）
 const flatCategories = computed(() => flattenCategories(categories.value).map((c) => ({ id: c.id, name: c.name })))
 
-const filterOpen = reactive({ cats: false, tags: false, dates: false })
-const showFromPicker = ref(false)
-const showToPicker = ref(false)
+// ============ 移动端筛选抽屉 ============
+const showFilterDrawer = ref(false)
+const drawerFromDate = ref('')
+const drawerToDate = ref('')
+
+// 手机端日期范围日历
+const showDateRange = ref(false)
+const minDate = new Date()
+minDate.setFullYear(minDate.getFullYear() - 10)
+const maxDate = new Date()
+
+// 抽屉内日期范围展示文案
+const drawerDateText = computed(() => {
+  const f = drawerFromDate.value, t = drawerToDate.value
+  if (f && t) return `${f} ~ ${t}`
+  if (f) return `${f} 起`
+  if (t) return `至 ${t}`
+  return '选择日期范围'
+})
+
+function openDateRange() {
+  showDateRange.value = true
+}
+
+function onDateRangeSelect(values) {
+  const [start, end] = values
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  drawerFromDate.value = fmt(start)
+  drawerToDate.value = fmt(end)
+  quickActive.value = 'all'
+  showDateRange.value = false
+}
+
+// 已生效的筛选条件数量（用于筛选按钮徽标）
+const filterCount = computed(() =>
+  activeCategoryIds.value.length +
+  activeTagIds.value.length +
+  (filters.fromDate || filters.toDate ? 1 : 0)
+)
+
+function openFilterDrawer() {
+  // 打开抽屉时，把已生效的日期同步到抽屉临时值
+  drawerFromDate.value = filters.fromDate
+  drawerToDate.value = filters.toDate
+  showFilterDrawer.value = true
+}
+
+// 抽屉内切换（不立即 reload，等「应用」统一提交）
+function toggleCategoryNoReload(id) {
+  const i = activeCategoryIds.value.indexOf(id)
+  if (i >= 0) activeCategoryIds.value.splice(i, 1)
+  else activeCategoryIds.value.push(id)
+}
+
+function toggleTagNoReload(id) {
+  const i = activeTagIds.value.indexOf(id)
+  if (i >= 0) activeTagIds.value.splice(i, 1)
+  else activeTagIds.value.push(id)
+}
+
+function applyQuickRangeNoReload(key) {
+  quickActive.value = key
+  const now = new Date()
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  if (key === 'all') {
+    drawerFromDate.value = ''
+    drawerToDate.value = ''
+  } else if (key === 'today') {
+    const s = fmt(now)
+    drawerFromDate.value = s
+    drawerToDate.value = s
+  } else if (key === 'week') {
+    const day = now.getDay() || 7
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - day + 1)
+    drawerFromDate.value = fmt(monday)
+    drawerToDate.value = fmt(now)
+  } else if (key === 'month') {
+    drawerFromDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    drawerToDate.value = fmt(now)
+  } else if (key === 'year') {
+    drawerFromDate.value = `${now.getFullYear()}-01-01`
+    drawerToDate.value = fmt(now)
+  }
+}
+
+function applyDrawerFilters() {
+  filters.fromDate = drawerFromDate.value
+  filters.toDate = drawerToDate.value
+  showFilterDrawer.value = false
+  reload()
+}
 
 // ============ 桌面端筛选侧栏 ============
 const tagFilter = ref('')
@@ -493,6 +569,8 @@ function clearAllFilters() {
   filters.keyword = ''
   tagFilter.value = ''
   quickActive.value = 'all'
+  drawerFromDate.value = ''
+  drawerToDate.value = ''
   reload()
 }
 
@@ -543,34 +621,6 @@ const keyOfMonth = (y, m) => `${y}-${m}`
 
 function toggleYear(y) { yearExpanded[y] = !yearExpanded[y] }
 function toggleMonth(y, m) { monthExpanded[keyOfMonth(y, m)] = !monthExpanded[keyOfMonth(y, m)] }
-
-// ============ 日期选择器列 ============
-const now = new Date()
-const years = []
-for (let y = now.getFullYear(); y >= now.getFullYear() - 10; y--) years.push(y)
-const months = Array.from({ length: 12 }, (_, i) => i + 1)
-const days = Array.from({ length: 31 }, (_, i) => i + 1)
-const dateColumns = [
-  { values: years.map(String) },
-  { values: months.map(m => String(m).padStart(2, '0')) },
-  { values: days.map(d => String(d).padStart(2, '0')) }
-]
-
-function datePickerValue(kind) {
-  const s = kind === 'from' ? filters.fromDate : filters.toDate
-  if (!s) return [String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')]
-  const d = new Date(s)
-  if (isNaN(d)) return [String(now.getFullYear()), '01', '01']
-  return [String(d.getFullYear()), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')]
-}
-
-function onDateConfirm(kind, values) {
-  const s = `${values[0]}-${values[1]}-${values[2]}`
-  if (kind === 'from') filters.fromDate = s
-  else filters.toDate = s
-  showFromPicker.value = false
-  showToPicker.value = false
-}
 
 // ============ 业务方法 ============
 async function loadMeta() {
@@ -652,43 +702,197 @@ watch(() => filters.keyword, () => {
 }
 .filter-bar {
   background: var(--surface);
-  padding: 8px 12px 12px;
+  padding: 8px 12px 10px;
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 46px; /* 避让 van-nav-bar fixed */
   z-index: 20;
 }
-.filter-row {
+.filter-bar-row {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+}
+.mobile-search {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+}
+.mobile-search :deep(.van-search__content) {
+  background: var(--surface-2);
+}
+.mobile-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mobile-filter-btn.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.08);
+}
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.mobile-active-filters {
+  display: flex;
   flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
 }
-.filter-panel {
-  padding: 10px 4px 6px;
-  border-top: 1px dashed var(--border);
+.mobile-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-primary);
+  font-size: 12px;
+  cursor: pointer;
 }
-.filter-title {
+
+/* ========== 移动端筛选抽屉 ========== */
+.filter-drawer :deep(.van-popup) {
+  border-radius: 16px 16px 0 0;
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--divider);
+}
+.drawer-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.drawer-reset {
   font-size: 13px;
   color: var(--text-tertiary);
-  margin-bottom: 8px;
+  cursor: pointer;
 }
-.filter-chip {
-  margin-right: 14px;
-  margin-bottom: 8px;
+.drawer-body {
+  padding: 4px 16px 16px;
+  max-height: calc(82vh - 120px);
+  overflow-y: auto;
 }
-.filter-actions {
+.drawer-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.drawer-section:last-child {
+  border-bottom: none;
+}
+.drawer-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
+.drawer-chips {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
 }
-.date-row {
+.drawer-chip {
+  padding: 6px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.drawer-chip.active {
+  border-color: var(--color-primary);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.drawer-quick-ranges {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 12px;
 }
-.date-row :deep(.van-field) {
+.drawer-quick-chip {
+  padding: 6px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.drawer-quick-chip.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.drawer-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.drawer-date-field:active {
+  border-color: var(--color-primary);
+}
+.drawer-date-text {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawer-footer {
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--divider);
+}
+.drawer-apply-btn {
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.drawer-apply-btn:active {
+  opacity: 0.85;
 }
 
 .loading {
