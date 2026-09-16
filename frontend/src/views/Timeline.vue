@@ -216,9 +216,22 @@
                   @click="applyQuickRange(r.key)"
                 >{{ r.label }}</span>
               </div>
-              <div class="date-field" @click="showDateRange = true">
-                <van-icon name="calendar-o" size="15" />
-                <span class="date-value">{{ dateRangeText }}</span>
+              <div class="date-range-inputs">
+                <input
+                  type="date"
+                  class="native-date-input"
+                  :value="filters.fromDate"
+                  :max="filters.toDate || undefined"
+                  @input="onFromDateInput"
+                />
+                <span class="date-sep">~</span>
+                <input
+                  type="date"
+                  class="native-date-input"
+                  :value="filters.toDate"
+                  :min="filters.fromDate || undefined"
+                  @input="onToDateInput"
+                />
               </div>
             </div>
           </div>
@@ -227,16 +240,6 @@
           <div class="result-count">命中 <b>{{ timeline.totalNotes }}</b> 篇</div>
         </div>
       </aside>
-
-      <van-calendar
-        v-if="isDesktop"
-        v-model:show="showDateRange"
-        type="range"
-        :min-date="minDate"
-        :max-date="maxDate"
-        :show-confirm="false"
-        @confirm="onDateRangeConfirm"
-      />
 
       <div class="timeline">
         <!-- 加载态 -->
@@ -395,12 +398,6 @@ const showToPicker = ref(false)
 
 // ============ 桌面端筛选侧栏 ============
 const tagFilter = ref('')
-const showDateRange = ref(false)
-
-// 日期范围日历边界
-const minDate = new Date()
-minDate.setFullYear(minDate.getFullYear() - 10)
-const maxDate = new Date()
 
 // 快捷区间
 const quickRanges = [
@@ -526,13 +523,15 @@ function applyQuickRange(key) {
   reload()
 }
 
-function onDateRangeConfirm(values) {
-  const [start, end] = values
-  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  filters.fromDate = fmt(start)
-  filters.toDate = fmt(end)
+function onFromDateInput(e) {
+  filters.fromDate = e.target.value || ''
   quickActive.value = 'all'
-  showDateRange.value = false
+  reload()
+}
+
+function onToDateInput(e) {
+  filters.toDate = e.target.value || ''
+  quickActive.value = 'all'
   reload()
 }
 
@@ -1059,26 +1058,35 @@ watch(() => filters.keyword, () => {
     border-color: var(--color-primary);
     color: #fff;
   }
-  .date-field {
+  .date-range-inputs {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    gap: 6px;
+  }
+  .native-date-input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 8px;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 13px;
-    color: var(--text-secondary);
-    cursor: pointer;
+    color: var(--text-primary);
+    background: var(--surface-2);
     transition: border-color 0.15s ease;
+    cursor: pointer;
   }
-  .date-field:hover {
+  .native-date-input:hover {
     border-color: var(--color-primary);
   }
-  .date-value {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .native-date-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  }
+  .date-sep {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    flex-shrink: 0;
   }
 
   .result-count {
