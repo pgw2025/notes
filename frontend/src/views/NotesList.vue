@@ -34,9 +34,9 @@
                 <van-icon :name="densityMode === 'compact' ? 'apps-o' : 'bars'" size="15" />
               </button>
 
-              <!-- 排序方式切换 -->
-              <button class="toolbar-btn" :title="sortOrderLabel" @click="cycleSortOrder">
-                <van-icon name="ascending-descending" size="15" />
+              <!-- 排序方式切换（图标随当前维度变化） -->
+              <button class="toolbar-btn" :title="sortOrderLabel" aria-label="切换排序方式" @click="cycleSortOrder">
+                <van-icon :name="sortOrderIcon" size="15" />
               </button>
 
               <!-- 快速新建 -->
@@ -45,14 +45,16 @@
                 <span v-if="!isDesktop">写笔记</span>
               </router-link>
 
-              <!-- 收起态：展开主舞台 -->
+              <!-- 收起态：展开主舞台（带文字，提高可发现性） -->
               <button
                 v-if="isDesktop && stageCollapsed"
-                class="toolbar-btn"
+                class="toolbar-btn is-accent"
                 title="展开主舞台 (Ctrl+Shift+→)"
+                aria-label="展开主舞台"
                 @click="toggleStageCollapsed"
               >
                 <van-icon name="arrow-left" size="15" />
+                <span class="toolbar-btn-text">展开</span>
               </button>
             </div>
           </div>
@@ -336,6 +338,16 @@
                   @click="isStageFullscreen = !isStageFullscreen"
                 >
                   <van-icon :name="isStageFullscreen ? 'shrink' : 'expand-o'" size="16" />
+                </button>
+
+                <!-- 收起主舞台（仅显示笔记列表） -->
+                <button
+                  class="stage-action-btn stage-collapse-btn"
+                  title="收起主舞台，仅显示笔记列表"
+                  aria-label="收起主舞台"
+                  @click="toggleStageCollapsed"
+                >
+                  <van-icon name="arrow" size="16" />
                 </button>
 
                 <!-- 删除笔记 -->
@@ -641,6 +653,12 @@ const sortOrderLabel = computed(() => {
   if (sortOrder.value === 'title') return '当前按标题字母排序'
   return '当前按更新时间排序'
 })
+// 排序按钮图标：随当前排序维度变化，图标本身即状态提示
+const sortOrderIcon = computed(() => {
+  if (sortOrder.value === 'created') return 'calendar-o'
+  if (sortOrder.value === 'title') return 'font-o'
+  return 'clock-o'
+})
 function cycleSortOrder() {
   const orders = ['updated', 'created', 'title']
   const next = orders[(orders.indexOf(sortOrder.value) + 1) % orders.length]
@@ -744,6 +762,9 @@ const stageBackgroundStyle = computed(() => {
 
 // 选中并加载笔记
 async function selectNote(id, opts = {}) {
+  // 桌面端：用户主动选中笔记时，若主舞台处于收起态则自动展开
+  // keepCollapsed 用于 loadNotes 的默认选中，避免覆盖用户手动收起的偏好
+  if (!opts.keepCollapsed && isDesktop.value && stageCollapsed.value) toggleStageCollapsed()
   if (selectedNoteId.value === id && !opts.edit) {
     editMode.value = false
     return
@@ -1041,9 +1062,9 @@ async function loadNotes() {
     notes.value = res.items || []
     listFinished.value = (res.items || []).length < pageSize
 
-    // 桌面端：若当前无选中笔记，默认选中第一篇
+    // 桌面端：若当前无选中笔记，默认选中第一篇（keepCollapsed：不因此展开主舞台）
     if (isDesktop.value && !selectedNoteId.value && notes.value.length > 0) {
-      selectNote(notes.value[0].id)
+      selectNote(notes.value[0].id, { keepCollapsed: true })
     }
   } catch {
     notes.value = []
@@ -1343,6 +1364,21 @@ watch(isStageFullscreen, (v) => {
   background: var(--surface-2);
   color: var(--color-primary);
   border-color: var(--color-primary);
+}
+
+/* 展开主舞台：常态即主色 + 文字标签，与相邻图标按钮区分开 */
+.toolbar-btn.is-accent {
+  width: auto;
+  padding: 0 10px;
+  gap: 4px;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.toolbar-btn-text {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .toolbar-new-btn {
@@ -1686,6 +1722,17 @@ watch(isStageFullscreen, (v) => {
   background: rgba(239, 68, 68, 0.12);
   color: #ef4444;
   border-color: #ef4444;
+}
+
+/* 收起主舞台：主色图标常驻，避免与相邻中性按钮混淆 */
+.stage-action-btn.stage-collapse-btn {
+  color: var(--color-primary);
+}
+
+.stage-action-btn.stage-collapse-btn:hover {
+  background: var(--surface-2);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 /* 调色气泡 */
