@@ -400,10 +400,17 @@ function onLeave() {
 }
 
 function scrollToToday() {
+  // 获取今天的日期字符串（UTC）
+  const now = new Date()
+  const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
+  // 选中今天的格子
+  selectedDate.value = todayStr
+  emit('select', todayStr)
+  // 如果有滚动空间，滚动到最右边
   const scrollEl = cardEl.value?.querySelector('.heatmap-scroll')
-  if (!scrollEl) return
-  // 滚动到最右边（最新的一周）
-  scrollEl.scrollTo({ left: scrollEl.scrollWidth, behavior: 'smooth' })
+  if (scrollEl && scrollEl.scrollWidth > scrollEl.clientWidth) {
+    scrollEl.scrollTo({ left: scrollEl.scrollWidth, behavior: 'smooth' })
+  }
 }
 
 onMounted(() => {
