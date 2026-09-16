@@ -260,6 +260,7 @@
             <button type="button" class="bubble-btn" @click="applyList('bullet')">• 无序</button>
             <button type="button" class="bubble-btn" @click="applyList('number')">1. 有序</button>
             <button type="button" class="bubble-btn" @click="applyList('todo')">☑ 待办</button>
+            <button type="button" class="bubble-btn" @click="toggleTodoDone(); activeMobileMenu = null">☑ 完成/恢复</button>
             <button type="button" class="bubble-btn" @click="applyList('quote')">❝ 引用</button>
           </div>
         </transition>
@@ -711,7 +712,7 @@ const toolbarButtons = computed(() => [
   { label: '•', title: '无序列表', action: () => insert('- ', '', '', 'line') },
   { label: '1.', title: '有序列表', action: () => insert('1. ', '', '', 'line') },
   { label: '◻', title: '待办', action: () => insert('- [ ] ', '', '', 'line') },
-  { label: '☑', title: '已完成待办', action: markTodoDone },
+  { label: '☑', title: '切换待办完成状态', action: toggleTodoDone },
   { label: '&quot;', title: '引用', action: () => insert('> ', '', '', 'line') },
   { label: '---', title: '分割线', action: () => insert('\n---\n', '', '', 'block') },
   { divider: true },
@@ -1498,9 +1499,9 @@ function insert(before, after = '', placeholder = '', mode = 'block') {
   })
 }
 
-// 已完成待办：将光标所在行的未完成待办 `- [ ]` 替换为已完成 `- [x]`
-// （不额外插入标签；若当前行非待办或已是已完成则不做改动，避免误操作）
-function markTodoDone() {
+// 待办完成切换：将光标所在行的待办状态在 `- [ ]` 与 `- [x]` 之间来回切换
+// （不额外插入标签；若当前行非待办则不做改动，避免误操作）
+function toggleTodoDone() {
   const ta = textareaRef.value
   if (!ta) return
   const start = ta.selectionStart
@@ -1508,9 +1509,12 @@ function markTodoDone() {
   const lineEnd = form.content.indexOf('\n', start)
   const curEnd = lineEnd === -1 ? form.content.length : lineEnd
   const line = form.content.substring(lineStart, curEnd)
-  const re = /^(\s*)- \[ \]/
-  if (!re.test(line)) return
-  const newLine = line.replace(re, '$1- [x]')
+  const checkedRe = /^(\s*)- \[x\]/
+  const uncheckedRe = /^(\s*)- \[ \]/
+  let newLine
+  if (uncheckedRe.test(line)) newLine = line.replace(uncheckedRe, '$1- [x]')
+  else if (checkedRe.test(line)) newLine = line.replace(checkedRe, '$1- [ ]')
+  else return
   form.content = form.content.substring(0, lineStart) + newLine + form.content.substring(curEnd)
   nextTick(() => {
     ta.focus()
@@ -1537,31 +1541,33 @@ function handleListEnter(e) {
   const currentLine = text.substring(lineStart, currentLineEnd)
   const cursorCol = pos - lineStart
 
-  // 匹配列表前缀：缩进 + (- * + 或 数字.) + 空格
-  const m = currentLine.match(/^(\s*)((?:[-*+]\s+)|(?:(\d+)\.\s+))/)
+  // 匹配列表前缀：缩进 + (待办勾选?) + (无序符 或 数字.)
+  // 待办形如 "- [ ] 文字" / "- [x] 文字"，勾选框位于无序符之后
+  const m = currentLine.match(/^(\s*)(?:(\d+)\.|([-*+]))\s+(\[[ xX]\]\s*)?(.*)$/)
   if (!m) return // 不是列表行，走默认
 
   const indent = m[1]
-  const prefix = m[2]
-  const isOrdered = !!m[3]
-  const contentAfterPrefix = currentLine.substring(m[0].length)
+  const isOrdered = !!m[2]
+  const bulletChar = m[3]
+  const isCheck = !!m[4]
+  const contentAfterPrefix = m[5]
 
   if (!contentAfterPrefix.trim()) {
-    // 整行只有前缀没有内容 → 删除前缀，退出列表
+    // 整行只有前缀(含待办勾选)没有内容 → 删除前缀，退出列表
     e.preventDefault()
     form.content = text.substring(0, lineStart) + indent + text.substring(currentLineEnd)
     nextTick(() => { ta.focus(); ta.setSelectionRange(lineStart + indent.length, lineStart + indent.length) })
     return
   }
 
-  // 行有内容 → 续行
+  // 行有内容 → 续行；待办续行保持待办结构,且新行默认为未完成
   e.preventDefault()
   let newPrefix
   if (isOrdered) {
-    const num = parseInt(m[3], 10) + 1
-    newPrefix = `${indent}${num}. `
+    const num = parseInt(m[2], 10) + 1
+    newPrefix = `${indent}${num}. ${isCheck ? '[ ] ' : ''}`
   } else {
-    newPrefix = `${indent}${prefix}`
+    newPrefix = `${indent}${bulletChar} ${isCheck ? '[ ] ' : ''}`
   }
   const insertText = '\n' + newPrefix
   form.content = text.substring(0, pos) + insertText + text.substring(pos)
