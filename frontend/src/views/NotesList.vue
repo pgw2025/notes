@@ -34,11 +34,6 @@
                 <van-icon :name="densityMode === 'compact' ? 'apps-o' : 'bars'" size="15" />
               </button>
 
-              <!-- 排序方式切换（图标随当前维度变化） -->
-              <button class="toolbar-btn" :title="sortOrderLabel" aria-label="切换排序方式" @click="cycleSortOrder">
-                <van-icon :name="sortOrderIcon" size="15" />
-              </button>
-
               <!-- 快速新建 -->
               <router-link to="/notes/new" class="toolbar-new-btn" title="新建笔记 (Ctrl+N)">
                 <van-icon name="plus" size="14" />
@@ -648,24 +643,6 @@ function toggleDensityMode() {
 
 // 排序设置: 'updated' | 'created' | 'title'
 const sortOrder = ref(localStorage.getItem('notes_sort') || 'updated')
-const sortOrderLabel = computed(() => {
-  if (sortOrder.value === 'created') return '当前按创建时间排序'
-  if (sortOrder.value === 'title') return '当前按标题字母排序'
-  return '当前按更新时间排序'
-})
-// 排序按钮图标：随当前排序维度变化，图标本身即状态提示
-const sortOrderIcon = computed(() => {
-  if (sortOrder.value === 'created') return 'calendar-o'
-  if (sortOrder.value === 'title') return 'font-o'
-  return 'clock-o'
-})
-function cycleSortOrder() {
-  const orders = ['updated', 'created', 'title']
-  const next = orders[(orders.indexOf(sortOrder.value) + 1) % orders.length]
-  sortOrder.value = next
-  localStorage.setItem('notes_sort', next)
-  showToast({ message: sortOrderLabel.value, position: 'bottom' })
-}
 
 // 搜索过滤词
 const listFilterQuery = ref('')
@@ -1442,6 +1419,41 @@ watch(isStageFullscreen, (v) => {
   flex: 1;
   overflow-y: auto;
   outline: none;
+}
+
+/* ==================== 移动端：列表区收敛为内部滚动 ==================== */
+@media (max-width: 1023px) {
+  .page {
+    height: 100dvh;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .layout {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .workbench-list-pane.mobile-list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .list-scroll-area {
+    flex: 1;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: calc(var(--van-tabbar-height, 50px) + env(safe-area-inset-bottom));
+  }
 }
 
 /* 紧凑列表样式 */
