@@ -2,7 +2,8 @@
   <div class="page timeline-page">
     <van-nav-bar title="时间线" fixed placeholder />
 
-    <div class="filter-bar">
+    <!-- ============ 移动端筛选栏（<1024px）============ -->
+    <div v-if="!isDesktop" class="filter-bar">
       <div class="filter-row">
         <van-button
           size="small"
@@ -123,17 +124,131 @@
       @cancel="showToPicker = false"
     />
 
-    <!-- 加载 -->
-    <van-loading v-if="loading" class="loading" color="#1989fa" size="24px">加载中…</van-loading>
+    <!-- 时间线主布局：筛选侧栏 + 中间结果 + 详情预览，侧栏/预览常驻，仅中间栏做三态切换 -->
+    <div class="timeline-layout">
+      <!-- ============ 桌面端左侧筛选侧栏（>=1024px）============ -->
+      <aside v-if="isDesktop" class="filter-sidebar">
+        <div class="sidebar-scroll">
+          <van-search
+            v-model="filters.keyword"
+            placeholder="搜索标题或正文"
+            shape="round"
+            :clearable="true"
+            @search="reload"
+            @clear="reload"
+          />
 
-    <!-- 空态 -->
-    <div v-else-if="!timeline?.years?.length" class="empty">
-      <van-empty description="还没有笔记，去写第一篇吧～" />
-    </div>
+          <!-- 已选条件胶囊条 -->
+          <div v-if="activeFilters.length" class="active-filters">
+            <span
+              v-for="(f, i) in activeFilters"
+              :key="i"
+              class="active-chip"
+              @click="removeFilter(f)"
+            >
+              {{ f.label }} <van-icon name="cross" size="10" />
+            </span>
+            <span class="active-clear" @click="clearAllFilters">清空</span>
+          </div>
 
-    <!-- 时间线 -->
-    <div v-else class="timeline-layout">
+          <!-- 分类 -->
+          <div class="filter-group">
+            <div class="group-title">
+              <span>分类</span>
+              <van-tag v-if="activeCategoryIds.length" plain type="primary" size="mini">{{ activeCategoryIds.length }}</van-tag>
+            </div>
+            <div class="group-body category-list">
+              <div
+                v-for="c in flatCategories"
+                :key="c.id"
+                class="group-option"
+                :class="{ active: activeCategoryIds.includes(c.id) }"
+                @click="toggleCategory(c.id)"
+              >
+                <van-icon :name="activeCategoryIds.includes(c.id) ? 'checked' : 'circle'" size="15" />
+                <span class="option-label">{{ c.name }}</span>
+                <span class="option-count">{{ categoryCount[c.id] || 0 }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 标签 -->
+          <div class="filter-group">
+            <div class="group-title">
+              <span>标签</span>
+              <van-tag v-if="activeTagIds.length" plain type="primary" size="mini">{{ activeTagIds.length }}</van-tag>
+            </div>
+            <van-search
+              v-if="tags.length > 8"
+              v-model="tagFilter"
+              placeholder="筛选标签"
+              shape="round"
+              size="small"
+            />
+            <div class="group-body tag-list">
+              <div
+                v-for="t in filteredTags"
+                :key="t.id"
+                class="group-option"
+                :class="{ active: activeTagIds.includes(t.id) }"
+                @click="toggleTag(t.id)"
+              >
+                <van-icon :name="activeTagIds.includes(t.id) ? 'checked' : 'circle'" size="15" />
+                <span class="option-label"># {{ t.name }}</span>
+              </div>
+              <div v-if="!filteredTags.length" class="group-empty">无匹配标签</div>
+            </div>
+          </div>
+
+          <!-- 日期 -->
+          <div class="filter-group">
+            <div class="group-title">
+              <span>日期范围</span>
+              <van-tag v-if="filters.fromDate || filters.toDate" plain type="primary" size="mini">已选</van-tag>
+            </div>
+            <div class="group-body">
+              <div class="quick-ranges">
+                <span
+                  v-for="r in quickRanges"
+                  :key="r.key"
+                  class="quick-chip"
+                  :class="{ active: quickActive === r.key }"
+                  @click="applyQuickRange(r.key)"
+                >{{ r.label }}</span>
+              </div>
+              <div class="date-field" @click="showDateRange = true">
+                <van-icon name="calendar-o" size="15" />
+                <span class="date-value">{{ dateRangeText }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 结果计数 -->
+          <div class="result-count">命中 <b>{{ timeline.totalNotes }}</b> 篇</div>
+        </div>
+      </aside>
+
+      <van-calendar
+        v-if="isDesktop"
+        v-model:show="showDateRange"
+        type="range"
+        :min-date="minDate"
+        :max-date="maxDate"
+        :show-confirm="false"
+        @confirm="onDateRangeConfirm"
+      />
+
       <div class="timeline">
+        <!-- 加载态 -->
+        <van-loading v-if="loading" class="loading" color="#1989fa" size="24px">加载中…</van-loading>
+
+        <!-- 空态 -->
+        <div v-else-if="!timeline?.years?.length" class="empty">
+          <van-empty :description="emptyText" />
+        </div>
+
+        <!-- 数据态 -->
+        <template v-else>
         <template v-for="year in timeline.years" :key="year.year">
         <div class="year-group">
           <div class="year-header" @click="toggleYear(year.year)">
@@ -186,6 +301,7 @@
           </div>
         </div>
       </template>
+        </template>
       </div>
 
       <!-- 桌面端右栏：详情预览工作台 -->
@@ -276,6 +392,149 @@ const flatCategories = computed(() => flattenCategories(categories.value).map((c
 const filterOpen = reactive({ cats: false, tags: false, dates: false })
 const showFromPicker = ref(false)
 const showToPicker = ref(false)
+
+// ============ 桌面端筛选侧栏 ============
+const tagFilter = ref('')
+const showDateRange = ref(false)
+
+// 日期范围日历边界
+const minDate = new Date()
+minDate.setFullYear(minDate.getFullYear() - 10)
+const maxDate = new Date()
+
+// 快捷区间
+const quickRanges = [
+  { key: 'today', label: '今天' },
+  { key: 'week', label: '本周' },
+  { key: 'month', label: '本月' },
+  { key: 'year', label: '今年' },
+  { key: 'all', label: '全部' }
+]
+const quickActive = ref('all')
+
+// 标签过滤（>8 个时显示搜索）
+const filteredTags = computed(() => {
+  const kw = tagFilter.value.trim().toLowerCase()
+  if (!kw) return tags.value
+  return tags.value.filter((t) => t.name.toLowerCase().includes(kw))
+})
+
+// 已选条件胶囊（用于顶部汇总条）
+const activeFilters = computed(() => {
+  const list = []
+  const catMap = new Map(flatCategories.value.map((c) => [c.id, c.name]))
+  activeCategoryIds.value.forEach((id) => {
+    list.push({ type: 'category', label: `分类:${catMap.get(id) || id}`, value: id })
+  })
+  const tagMap = new Map(tags.value.map((t) => [t.id, t.name]))
+  activeTagIds.value.forEach((id) => {
+    list.push({ type: 'tag', label: `标签:${tagMap.get(id) || id}`, value: id })
+  })
+  if (filters.fromDate || filters.toDate) {
+    list.push({ type: 'date', label: `日期:${dateRangeText.value}`, value: null })
+  }
+  return list
+})
+
+const dateRangeText = computed(() => {
+  const f = filters.fromDate, t = filters.toDate
+  if (f && t) return `${f} ~ ${t}`
+  if (f) return `${f} 起`
+  if (t) return `至 ${t}`
+  return '选择日期范围'
+})
+
+// 空态文案：区分「无任何笔记」与「当前筛选条件下无匹配」
+const hasActiveFilter = computed(() =>
+  activeCategoryIds.value.length > 0 ||
+  activeTagIds.value.length > 0 ||
+  !!filters.keyword ||
+  !!filters.fromDate ||
+  !!filters.toDate
+)
+const emptyText = computed(() =>
+  hasActiveFilter.value ? '当前筛选条件下没有匹配的笔记' : '还没有笔记，去写第一篇吧～'
+)
+
+// 分类计数（用于侧栏显示每个分类下的笔记数，按需返回 0，避免额外请求）
+const categoryCount = reactive({})
+
+function toggleCategory(id) {
+  const i = activeCategoryIds.value.indexOf(id)
+  if (i >= 0) activeCategoryIds.value.splice(i, 1)
+  else activeCategoryIds.value.push(id)
+  reload()
+}
+
+function toggleTag(id) {
+  const i = activeTagIds.value.indexOf(id)
+  if (i >= 0) activeTagIds.value.splice(i, 1)
+  else activeTagIds.value.push(id)
+  reload()
+}
+
+function removeFilter(f) {
+  if (f.type === 'category') {
+    activeCategoryIds.value = activeCategoryIds.value.filter((id) => id !== f.value)
+    reload()
+  } else if (f.type === 'tag') {
+    activeTagIds.value = activeTagIds.value.filter((id) => id !== f.value)
+    reload()
+  } else if (f.type === 'date') {
+    filters.fromDate = ''
+    filters.toDate = ''
+    quickActive.value = 'all'
+    reload()
+  }
+}
+
+function clearAllFilters() {
+  activeCategoryIds.value = []
+  activeTagIds.value = []
+  filters.fromDate = ''
+  filters.toDate = ''
+  filters.keyword = ''
+  tagFilter.value = ''
+  quickActive.value = 'all'
+  reload()
+}
+
+function applyQuickRange(key) {
+  quickActive.value = key
+  const now = new Date()
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  if (key === 'all') {
+    filters.fromDate = ''
+    filters.toDate = ''
+  } else if (key === 'today') {
+    const s = fmt(now)
+    filters.fromDate = s
+    filters.toDate = s
+  } else if (key === 'week') {
+    const day = now.getDay() || 7
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - day + 1)
+    filters.fromDate = fmt(monday)
+    filters.toDate = fmt(now)
+  } else if (key === 'month') {
+    filters.fromDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    filters.toDate = fmt(now)
+  } else if (key === 'year') {
+    filters.fromDate = `${now.getFullYear()}-01-01`
+    filters.toDate = fmt(now)
+  }
+  reload()
+}
+
+function onDateRangeConfirm(values) {
+  const [start, end] = values
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  filters.fromDate = fmt(start)
+  filters.toDate = fmt(end)
+  quickActive.value = 'all'
+  showDateRange.value = false
+  reload()
+}
 
 // 折叠/展开状态
 const yearExpanded = reactive({})
@@ -655,6 +914,184 @@ watch(() => filters.keyword, () => {
     border-radius: 14px;
     box-shadow: var(--shadow-sm);
   }
+
+  /* ========== 桌面端筛选侧栏 ========== */
+  .filter-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-scroll {
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sidebar-scroll :deep(.van-search) {
+    padding: 0;
+    background: transparent;
+  }
+  .sidebar-scroll :deep(.van-search__content) {
+    background: var(--surface-2);
+  }
+
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .active-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--color-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .active-chip:hover {
+    background: rgba(59, 130, 246, 0.2);
+  }
+  .active-clear {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .active-clear:hover {
+    color: var(--color-primary);
+  }
+
+  .filter-group {
+    border-top: 1px solid var(--divider);
+    padding-top: 12px;
+  }
+  .group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .category-list,
+  .tag-list {
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .group-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 13px;
+    transition: background 0.15s ease;
+  }
+  .group-option:hover {
+    background: var(--surface-2);
+  }
+  .group-option.active {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+  .group-option .option-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .group-option .option-count {
+    font-size: 11px;
+    color: var(--text-disabled);
+  }
+  .group-empty {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    padding: 8px;
+    text-align: center;
+  }
+
+  .quick-ranges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .quick-chip {
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .quick-chip:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+  .quick-chip.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+  }
+  .date-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .date-field:hover {
+    border-color: var(--color-primary);
+  }
+  .date-value {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-count {
+    border-top: 1px solid var(--divider);
+    padding-top: 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .result-count b {
+    color: var(--color-primary);
+    font-size: 15px;
+  }
+
   .preview-loading {
     display: flex;
     align-items: center;
@@ -766,6 +1203,14 @@ watch(() => filters.keyword, () => {
   }
 }
 @media (min-width: 1440px) {
+  .notes-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .timeline-preview {
+    width: 400px;
+  }
+}
+@media (min-width: 1680px) {
   .notes-list {
     grid-template-columns: repeat(3, 1fr);
   }
