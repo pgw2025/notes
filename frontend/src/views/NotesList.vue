@@ -395,28 +395,40 @@
 
             <!-- ==================== 2. 分屏编辑模式 ==================== -->
             <div v-else class="stage-edit-mode">
-              <!-- 快捷格式排版辅助条 -->
+              <!-- 快捷格式排版辅助条（与笔记编辑页面对齐） -->
               <div class="edit-formatting-toolbar">
-                <button class="fmt-btn" title="一级标题" @click="insertFormat('# ')">H1</button>
-                <button class="fmt-btn" title="二级标题" @click="insertFormat('## ')">H2</button>
-                <button class="fmt-btn" title="三级标题" @click="insertFormat('### ')">H3</button>
+                <button class="fmt-btn" title="一级标题" @click="insertLine('# ')">H</button>
+                <button class="fmt-btn" title="二级标题" @click="insertLine('## ')">H2</button>
+                <button class="fmt-btn" title="三级标题" @click="insertLine('### ')">H3</button>
+                <button class="fmt-btn" title="四级标题" @click="insertLine('#### ')">H4</button>
+                <button class="fmt-btn" title="五级标题" @click="insertLine('##### ')">H5</button>
                 <span class="fmt-divider"></span>
-                <button class="fmt-btn" title="加粗 (Ctrl+B)" @click="insertWrap('**', '**')"><b>B</b></button>
+                <button class="fmt-btn" title="粗体 (Ctrl+B)" @click="insertWrap('**', '**')"><b>B</b></button>
                 <button class="fmt-btn" title="斜体 (Ctrl+I)" @click="insertWrap('*', '*')"><i>I</i></button>
                 <button class="fmt-btn" title="删除线" @click="insertWrap('~~', '~~')"><s>S</s></button>
+                <button class="fmt-btn" title="行内代码" @click="insertWrap('`', '`')"><span style="font-family:monospace;font-size:12px">&lt;/&gt;</span></button>
                 <span class="fmt-divider"></span>
-                <button class="fmt-btn" title="代码块" @click="insertFormat('```\n\n```', 4)">Code</button>
-                <button class="fmt-btn" title="行内数学公式" @click="insertWrap('$', '$')">$x$</button>
-                <button class="fmt-btn" title="块级数学公式" @click="insertFormat('$$\n\\frac{a}{b}\n$$\n')">$$</button>
-                <button class="fmt-btn" title="任务列表" @click="insertFormat('- [ ] ')">Task</button>
-                <button class="fmt-btn" title="表格" @click="insertFormat('| 标题 1 | 标题 2 |\n|---|---|\n| 内容 1 | 内容 2 |\n')">Table</button>
-                <button class="fmt-btn" title="引用块" @click="insertFormat('> ')">Quote</button>
+                <button class="fmt-btn" title="无序列表" @click="insertLine('- ')">•</button>
+                <button class="fmt-btn" title="有序列表" @click="insertLine('1. ')">1.</button>
+                <button class="fmt-btn" title="待办" @click="insertLine('- [ ] ')">◻</button>
+                <button class="fmt-btn" title="切换待办完成状态" @click="toggleTodoDone">☑</button>
+                <button class="fmt-btn" title="引用" @click="insertLine('> ')">&quot;</button>
+                <button class="fmt-btn" title="分割线" @click="insertBlock('\n---\n')">---</button>
+                <span class="fmt-divider"></span>
+                <button class="fmt-btn" title="代码块" @click="insertBlock('\n```\n', '\n```\n', '代码')">{ }</button>
+                <button class="fmt-btn" title="行内公式" @click="insertWrap('$', '$')">$</button>
+                <button class="fmt-btn" title="块级公式" @click="insertBlock('\n$$\n', '\n$$\n', '公式')">$$</button>
+                <button class="fmt-btn" title="链接" @click="insertWrap('[', '](https://)', '')">链接</button>
+                <button class="fmt-btn fmt-btn-primary" title="插入图片" @click="triggerImageUpload">图片</button>
+                <span class="fmt-divider"></span>
+                <button class="fmt-btn" title="格式化公式" @click="formatFormulas">格式化</button>
                 <div class="fmt-right-actions">
                   <van-button size="small" type="primary" :loading="saving" @click="saveFullEdit(true)">
                     保存版本 (Ctrl+S)
                   </van-button>
                 </div>
               </div>
+              <input ref="imageFileInputRef" type="file" accept="image/*" style="display: none" @change="onImageUpload" />
 
               <!-- 编辑主区域：左源码编辑 + 右实时预览 -->
               <div class="split-editor-grid">
@@ -716,6 +728,7 @@ function toggleStageCollapsed() {
 }
 const showColorDropdown = ref(false)
 const contentTextareaRef = ref(null)
+const imageFileInputRef = ref(null)
 
 let autoSaveTimer = null
 
@@ -866,6 +879,119 @@ function insertWrap(before, after) {
   })
 }
 
+// 行级插入（在当前行首插入前缀）
+function insertLine(prefix) {
+  const el = contentTextareaRef.value
+  if (!el) return
+  const start = el.selectionStart
+  const val = editContent.value
+  // 找到当前行首
+  let lineStart = start
+  while (lineStart > 0 && val[lineStart - 1] !== '\n') {
+    lineStart--
+  }
+  editContent.value = val.slice(0, lineStart) + prefix + val.slice(lineStart)
+  onContentChanged()
+  nextTick(() => {
+    el.focus()
+    const newPos = start + prefix.length
+    el.setSelectionRange(newPos, newPos)
+  })
+}
+
+// 块级插入（前后各换行）
+function insertBlock(before, after, placeholder = '') {
+  const el = contentTextareaRef.value
+  if (!el) return
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  const selected = editContent.value.slice(start, end) || placeholder
+  const text = `${before}${selected}${after}`
+  editContent.value = editContent.value.slice(0, start) + text + editContent.value.slice(end)
+  onContentChanged()
+  nextTick(() => {
+    el.focus()
+    const pos = start + before.length + selected.length
+    el.setSelectionRange(pos, pos)
+  })
+}
+
+// 切换待办完成状态
+function toggleTodoDone() {
+  const el = contentTextareaRef.value
+  if (!el) return
+  const start = el.selectionStart
+  const val = editContent.value
+  // 找到当前行首
+  let lineStart = start
+  while (lineStart > 0 && val[lineStart - 1] !== '\n') {
+    lineStart--
+  }
+  const line = val.slice(lineStart, val.indexOf('\n', lineStart) === -1 ? val.length : val.indexOf('\n', lineStart))
+  if (line.startsWith('- [ ] ')) {
+    // 未完成 → 已完成
+    const newLine = '- [x] ' + line.slice(6)
+    editContent.value = val.slice(0, lineStart) + newLine + val.slice(lineStart + line.length)
+  } else if (line.startsWith('- [x] ')) {
+    // 已完成 → 未完成
+    const newLine = '- [ ] ' + line.slice(6)
+    editContent.value = val.slice(0, lineStart) + newLine + val.slice(lineStart + line.length)
+  } else if (line.startsWith('- ')) {
+    // 普通列表 → 待办
+    const newLine = '- [ ] ' + line.slice(2)
+    editContent.value = val.slice(0, lineStart) + newLine + val.slice(lineStart + line.length)
+  } else {
+    // 普通行 → 插入待办
+    insertLine('- [ ] ')
+    return
+  }
+  onContentChanged()
+  nextTick(() => {
+    el.focus()
+  })
+}
+
+// 触发图片上传
+function triggerImageUpload() {
+  imageFileInputRef.value?.click()
+}
+
+// 图片上传处理（占位：直接插入 markdown 图片语法）
+function onImageUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result
+    insertWrap(`![${file.name}](${dataUrl}`, '', file.name)
+  }
+  reader.readAsDataURL(file)
+  e.target.value = ''
+}
+
+// 格式化公式（简化版：规范化 $$ 块公式前后换行）
+function formatFormulas() {
+  const el = contentTextareaRef.value
+  if (!el) return
+  let content = editContent.value
+  // 规范化块级公式前后的空行
+  content = content.replace(/\n?\$\$\n?/g, (match, offset) => {
+    const before = content.slice(Math.max(0, offset - 2), offset)
+    const hasBeforeNewline = before.includes('\n') || offset === 0
+    const afterMatch = content.slice(offset + match.length).match(/^\n?/)
+    const hasAfterNewline = afterMatch && afterMatch[0].length > 0
+    let result = ''
+    if (!hasBeforeNewline && offset > 0) result += '\n'
+    result += '$$\n'
+    return result
+  })
+  // 简单修复：将所有独立的 $$ 替换并规范化
+  // 更简单的做法：直接提示（完整格式化逻辑复杂，此处做基础规范化）
+  editContent.value = content
+  onContentChanged()
+  showToast('已格式化')
+}
+
 // 键盘快捷键处理
 function handleEditorKeydown(e) {
   const isCtrlOrCmd = e.ctrlKey || e.metaKey
@@ -875,10 +1001,22 @@ function handleEditorKeydown(e) {
     saveFullEdit(true)
     return
   }
+  // Ctrl/Cmd + B -> 粗体
+  if (isCtrlOrCmd && (e.key === 'b' || e.key === 'B')) {
+    e.preventDefault()
+    insertWrap('**', '**')
+    return
+  }
+  // Ctrl/Cmd + I -> 斜体
+  if (isCtrlOrCmd && (e.key === 'i' || e.key === 'I')) {
+    e.preventDefault()
+    insertWrap('*', '*')
+    return
+  }
   // Tab 缩进
   if (e.key === 'Tab') {
     e.preventDefault()
-    insertFormat('  ')
+    insertLine('  ')
   }
 }
 
@@ -995,10 +1133,6 @@ function goDetail(id) {
 
 function goEdit(n) {
   const id = typeof n === 'object' ? n.id : n
-  if (isDesktop.value) {
-    selectNote(id, { edit: true })
-    return
-  }
   router.push(`/notes/${id}/edit`)
 }
 
@@ -1925,6 +2059,18 @@ watch(isStageFullscreen, (v) => {
   background: var(--surface-3);
   color: var(--color-primary);
   border-color: var(--color-primary);
+}
+
+.fmt-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.fmt-btn-primary:hover {
+  background: var(--color-primary-dark, #1576d9);
+  color: #fff;
+  border-color: var(--color-primary-dark, #1576d9);
 }
 
 .fmt-divider {
