@@ -64,9 +64,12 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="260" align="center" fixed="right">
+          <el-table-column label="操作" width="300" align="center" fixed="right">
             <template #default="{ row }">
               <div class="table-actions">
+                <el-button size="small" type="primary" link @click="openRename(row)">
+                  改名
+                </el-button>
                 <el-button
                   size="small"
                   :type="row.lockedOut ? 'success' : 'warning'"
@@ -135,6 +138,9 @@
           </div>
 
           <div class="mobile-card-actions">
+            <el-button size="small" type="primary" plain @click="openRename(user)">
+              改名
+            </el-button>
             <el-button
               size="small"
               :type="user.lockedOut ? 'success' : 'warning'"
@@ -197,6 +203,29 @@
         <el-button type="primary" :loading="pwdLoading" @click="handleResetPwd">确认重置</el-button>
       </template>
     </el-dialog>
+
+    <!-- Rename UserName Dialog -->
+    <el-dialog v-model="renameDialog" title="修改用户名" width="420px">
+      <el-form ref="renameFormRef" :model="renameForm" :rules="renameRules" label-position="top">
+        <div class="target-user-tip">
+          将用户 <strong>{{ renameTarget?.displayName || renameTarget?.email }}</strong> 的用户名
+          <template v-if="renameTarget?.userName">「{{ renameTarget.userName }}」</template>
+          修改为：
+        </div>
+        <el-form-item label="新用户名" prop="newUserName">
+          <el-input
+            v-model="renameForm.newUserName"
+            placeholder="3-30 位字母、数字、下划线或短横线"
+            maxlength="30"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="renameDialog = false">取消</el-button>
+        <el-button type="primary" :loading="renameLoading" @click="handleRename">确认修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -235,6 +264,31 @@ const pwdRules = {
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于 6 位', trigger: 'blur' }
+  ]
+}
+
+const renameDialog = ref(false)
+const renameLoading = ref(false)
+const renameTarget = ref(null)
+const renameFormRef = ref()
+const renameForm = reactive({
+  newUserName: ''
+})
+
+const renameRules = {
+  newUserName: [
+    { required: true, message: '请输入新用户名', trigger: 'blur' },
+    { min: 3, max: 30, message: '长度需为 3-30 位', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value && !/^[A-Za-z0-9_-]+$/.test(value)) {
+          callback(new Error('仅支持字母、数字、下划线或短横线'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
   ]
 }
 
@@ -296,6 +350,12 @@ function openResetPwd(user) {
   resetPwdDialog.value = true
 }
 
+function openRename(user) {
+  renameTarget.value = user
+  renameForm.newUserName = ''
+  renameDialog.value = true
+}
+
 function viewActivity(user) {
   router.push({ name: 'activities', query: { userId: user.id } })
 }
@@ -313,6 +373,23 @@ async function handleResetPwd() {
     ElMessage.error(err.message || '重置密码失败')
   } finally {
     pwdLoading.value = false
+  }
+}
+
+async function handleRename() {
+  await renameFormRef.value.validate()
+  renameLoading.value = true
+  try {
+    await http.put(`/admin/users/${renameTarget.value.id}/username`, {
+      newUserName: renameForm.newUserName
+    })
+    ElMessage.success('用户名修改成功')
+    renameDialog.value = false
+    loadUsers()
+  } catch (err) {
+    ElMessage.error(err.message || '修改用户名失败')
+  } finally {
+    renameLoading.value = false
   }
 }
 
@@ -395,28 +472,26 @@ onMounted(() => {
 
 .user-nick {
   font-weight: 600;
-  color: #1e293b;
   font-size: 13px;
 }
 
 .user-mail {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .note-count-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #f1f5f9;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #334155;
+  color: var(--admin-text-main);
 }
 
 .date-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .table-actions {
@@ -460,13 +535,12 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-weight: 600;
-  color: #0f172a;
   font-size: 13.5px;
 }
 
 .mobile-user-email {
   font-size: 11.5px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .mobile-card-meta {
@@ -474,24 +548,23 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  background: #f8fafc;
   border-radius: 6px;
   font-size: 12px;
   margin-bottom: 12px;
 }
 
 .meta-label {
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .meta-val {
   font-weight: 500;
-  color: #1e293b;
+  color: var(--admin-text-main);
 }
 
 .mobile-card-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 8px;
 }
 
@@ -503,13 +576,12 @@ onMounted(() => {
 }
 
 .target-user-tip {
-  background: #f8fafc;
   padding: 10px 12px;
   border-radius: 6px;
   font-size: 13px;
-  color: #475569;
+  color: var(--admin-text-sub);
   margin-bottom: 16px;
-  border-left: 3px solid #4f46e5;
+  border-left: 3px solid var(--admin-primary);
 }
 
 .pagination-wrapper {

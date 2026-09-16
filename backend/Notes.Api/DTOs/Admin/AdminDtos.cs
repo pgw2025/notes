@@ -15,6 +15,7 @@ public record AdminTrendPointDto(string Date, int NewUsers, int NewNotes);
 public record AdminUserDto(
     string Id,
     string Email,
+    string? UserName,
     string? DisplayName,
     string? AvatarUrl,
     DateTime CreatedAt,

@@ -75,6 +75,7 @@ public class AdminUsersController : ControllerBase
         var items = users.Select(x => new AdminUserDto(
             x.User.Id,
             x.User.Email ?? string.Empty,
+            x.User.UserName,
             x.User.DisplayName,
             x.User.AvatarUrl,
             x.User.CreatedAt,
@@ -129,6 +130,52 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
         return Ok(new { message = "密码已重置" });
+    }
+
+    /// <summary>管理员修改指定用户用户名（复用注册校验规则，唯一索引兜底并发冲突）</summary>
+    [HttpPut("{id}/username")]
+    public async Task<IActionResult> UpdateUserName(string id, [FromBody] UpdateUserNameDto dto)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null) return NotFound();
+
+        var newName = dto.NewUserName?.Trim() ?? string.Empty;
+        if (!IsValidUserName(newName))
+            return BadRequest(new { message = "用户名需为 3-30 位字母、数字、下划线或短横线" });
+
+        if (string.Equals(user.UserName, newName, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "新用户名与当前用户名相同" });
+
+        if (await _userManager.FindByNameAsync(newName) != null)
+            return Conflict(new { message = "该用户名已被占用" });
+
+        // 行为日志：记录旧用户名快照（供 Filter 读取）
+        HttpContext.Items["Activity:TargetUserName"] = user.UserName;
+
+        user.UserName = newName;
+        IdentityResult result;
+        try
+        {
+            result = await _userManager.UpdateAsync(user);
+        }
+        catch (DbUpdateException)
+        {
+            // 并发下两个请求同时通过查重，由 NormalizedUserName 唯一索引兜底拦截
+            return Conflict(new { message = "该用户名已被占用" });
+        }
+
+        if (!result.Succeeded)
+            return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
+
+        return Ok(new { user.Id, user.UserName });
+    }
+
+    /// <summary>用户名：3-30 位字母、数字、下划线或短横线（与注册规则一致）</summary>
+    private static bool IsValidUserName(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return false;
+        if (s.Length < 3 || s.Length > 30) return false;
+        return s.All(c => char.IsAsciiLetterOrDigit(c) || c == '_' || c == '-');
     }
 
     private static bool IsLockedOut(ApplicationUser user)
@@ -194,3 +241,5 @@ public class AdminUsersController : ControllerBase
 public record SetStatusDto(bool Locked);
 
 public record ResetPasswordDto(string NewPassword);
+
+public record UpdateUserNameDto(string NewUserName);
