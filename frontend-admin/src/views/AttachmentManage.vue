@@ -427,7 +427,7 @@ onMounted(() => {
 
 .file-name {
   font-weight: 500;
-  color: #1e293b;
+  color: var(--admin-text-main);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -435,12 +435,12 @@ onMounted(() => {
 
 .size-badge {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
   font-weight: 500;
 }
 
 .note-link-text {
-  color: #4f46e5;
+  color: var(--admin-primary);
   font-size: 12.5px;
 }
 
@@ -452,21 +452,21 @@ onMounted(() => {
 .u-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--admin-text-main);
 }
 
 .u-email {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .date-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .text-muted {
-  color: #cbd5e1;
+  color: var(--admin-text-muted);
   font-size: 12px;
 }
 
@@ -516,7 +516,7 @@ onMounted(() => {
 .mobile-file-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--admin-text-main);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -524,7 +524,7 @@ onMounted(() => {
 
 .mobile-size-badge {
   font-size: 11.5px;
-  color: #64748b;
+  color: var(--admin-text-sub);
   background: #f1f5f9;
   padding: 2px 6px;
   border-radius: 4px;
@@ -549,11 +549,11 @@ onMounted(() => {
 }
 
 .meta-label {
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .meta-val {
-  color: #1e293b;
+  color: var(--admin-text-main);
   font-weight: 500;
 }
 
@@ -569,7 +569,7 @@ onMounted(() => {
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #334155;
+  color: var(--admin-text-main);
 }
 
 .orphan-panel {

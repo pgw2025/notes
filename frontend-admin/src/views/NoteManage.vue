@@ -430,7 +430,7 @@ onMounted(() => {
 
 .note-title-text {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--admin-text-main);
   cursor: pointer;
   transition: color 0.15s ease;
 }
@@ -441,7 +441,7 @@ onMounted(() => {
 
 .note-preview-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
   margin-top: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -457,12 +457,11 @@ onMounted(() => {
 .author-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
 }
 
 .author-email {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .tags-wrap {
@@ -478,25 +477,25 @@ onMounted(() => {
 
 .tag-more {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .attach-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #6366f1;
+  color: var(--admin-primary);
   font-weight: 600;
   font-size: 12px;
 }
 
 .date-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .text-muted {
-  color: #cbd5e1;
+  color: var(--admin-text-muted);
   font-size: 12px;
 }
 
@@ -547,7 +546,7 @@ onMounted(() => {
 .mobile-note-title {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--admin-text-main);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -556,7 +555,7 @@ onMounted(() => {
 .mobile-note-preview {
   margin: 0 0 10px 0;
   font-size: 12.5px;
-  color: #64748b;
+  color: var(--admin-text-sub);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -587,12 +586,12 @@ onMounted(() => {
 .mobile-author-name {
   font-size: 12px;
   font-weight: 500;
-  color: #334155;
+  color: var(--admin-text-main);
 }
 
 .mobile-time {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .mobile-card-btns {
@@ -630,12 +629,12 @@ onMounted(() => {
 .detail-user-name {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--admin-text-main);
 }
 
 .detail-user-email {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .color-indicator {
@@ -643,7 +642,7 @@ onMounted(() => {
   height: 24px;
   border-radius: 50%;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px #cbd5e1;
+  box-shadow: 0 0 0 1px var(--admin-border);
 }
 
 .detail-meta-box {
@@ -660,7 +659,7 @@ onMounted(() => {
 }
 
 .meta-label {
-  color: #64748b;
+  color: var(--admin-text-sub);
   font-size: 12.5px;
 }
 
@@ -673,7 +672,7 @@ onMounted(() => {
 .meta-dates {
   margin-top: 4px;
   font-size: 11.5px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -695,7 +694,7 @@ onMounted(() => {
   font-family: inherit;
   font-size: 13.5px;
   line-height: 1.7;
-  color: #1e293b;
+  color: var(--admin-text-main);
 }
 
 .attachments-list {
@@ -715,7 +714,7 @@ onMounted(() => {
 }
 
 .att-icon {
-  color: #6366f1;
+  color: var(--admin-primary);
   font-size: 18px;
 }
 
@@ -727,7 +726,7 @@ onMounted(() => {
 .att-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--admin-text-main);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -735,11 +734,11 @@ onMounted(() => {
 
 .att-size {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .att-download-btn {
-  color: #6366f1;
+  color: var(--admin-primary);
   padding: 6px;
   border-radius: 6px;
   background: #eef2ff;

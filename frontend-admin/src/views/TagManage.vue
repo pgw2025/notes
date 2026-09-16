@@ -260,12 +260,12 @@ onMounted(load)
 .u-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--admin-text-main);
 }
 
 .u-email {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .table-actions {
@@ -320,11 +320,11 @@ onMounted(load)
 }
 
 .meta-label {
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .meta-val {
-  color: #1e293b;
+  color: var(--admin-text-main);
   font-weight: 500;
 }
 
@@ -339,9 +339,9 @@ onMounted(load)
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 12.5px;
-  color: #475569;
+  color: var(--admin-text-sub);
   margin-bottom: 14px;
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid var(--admin-primary);
 }
 
 .pagination-wrapper {

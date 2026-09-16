@@ -413,23 +413,23 @@ onMounted(() => {
 
 .user-name {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--admin-text-main);
   font-size: 13px;
 }
 
 .entity-text {
   font-size: 13px;
-  color: #334155;
+  color: var(--admin-text-main);
 }
 
 .date-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
 }
 
 .ua-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--admin-text-sub);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,7 +438,7 @@ onMounted(() => {
 }
 
 .text-muted {
-  color: #94a3b8;
+  color: var(--admin-text-muted);
   font-size: 12px;
 }
 
@@ -450,7 +450,6 @@ onMounted(() => {
 }
 
 .mobile-activity-card {
-  background: #ffffff;
   border: 1px solid var(--admin-border);
   border-radius: 10px;
   padding: 12px;
@@ -465,25 +464,25 @@ onMounted(() => {
 
 .mobile-time {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .mobile-user {
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--admin-text-main);
   margin-bottom: 4px;
 }
 
 .mobile-entity {
   font-size: 12.5px;
-  color: #334155;
+  color: var(--admin-text-main);
   margin-bottom: 4px;
 }
 
 .mobile-meta {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--admin-text-muted);
 }
 
 .pagination-wrapper {
