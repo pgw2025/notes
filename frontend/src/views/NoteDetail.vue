@@ -808,6 +808,17 @@ onMounted(() => {
   min-height: 100vh;
   padding-bottom: 40px;
 }
+/* 顶部导航栏吸附固定，长文滚动时不被滚出视野 */
+:deep(.van-nav-bar) {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-actions--mobile {
+  position: sticky;
+  top: var(--van-nav-bar-height, 46px);
+  z-index: 99;
+}
 .nav-right {
   display: flex;
   gap: 18px;
@@ -1140,7 +1151,6 @@ onMounted(() => {
   gap: 6px;
   padding: 8px 14px;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(0, 0, 0, 0.1);

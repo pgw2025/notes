@@ -655,6 +655,13 @@
 
 /* 移动端默认（无键盘）的底部预留 & 灵动胶囊布局 */
 @media (max-width: 1023px) {
+  /* 移动端：固定页高 + 隐藏页面级溢出，让标题栏固定、仅在正文区内部滚动
+     避免长文触发整页滚动导致导航栏一同滚出屏幕 */
+  .page {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
   .content-area {
     padding-bottom: 90px;
   }

@@ -2043,6 +2043,11 @@ watch(isStageFullscreen, (v) => {
 .reading-toc-aside {
   width: 220px;
   flex-shrink: 0;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
 }
 
 /* ==================== 2. 分屏编辑模式排版 ==================== */
