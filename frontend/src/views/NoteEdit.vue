@@ -238,7 +238,7 @@
       </div>
 
       <!-- 移动端：吸底黄金快捷工具栏（零横向滚动，气泡聚合，单手全触达） -->
-      <div v-if="!isDesktop" class="toolbar mobile-toolbar" :style="mobileToolbarStyle">
+      <div v-if="!isDesktop" class="toolbar mobile-toolbar" :style="mobileToolbarStyle" @mousedown.prevent>
         <!-- 弹层轻量遮罩：点击外部收起气泡 -->
         <div v-if="activeMobileMenu" class="mobile-popover-backdrop" @click="activeMobileMenu = null" />
 
