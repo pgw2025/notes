@@ -12,7 +12,7 @@
  *  根据当前 isDarkEffective 选一个合适的默认色板底色。
  */
 export const DEFAULT_NOTE_COLOR_LIGHT = '#FFFFFF'
-export const DEFAULT_NOTE_COLOR_DARK  = '#2b303d'
+export const DEFAULT_NOTE_COLOR_DARK  = '#2b344b'
 export const DEFAULT_NOTE_COLOR = DEFAULT_NOTE_COLOR_LIGHT  // 兼容老引用（浅色语义常量）
 
 /**
