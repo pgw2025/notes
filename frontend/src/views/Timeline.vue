@@ -1403,9 +1403,15 @@ watch(() => filters.keyword, () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
-    padding-bottom: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    /* 抵消 .preview-note 的内边距，使头部通栏固定，滚动时不被素体顶上滚出 */
+    margin: -16px -18px 14px;
+    padding: 16px 18px 12px;
+    background: var(--surface);
     border-bottom: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
   }
   .preview-crumb {
     font-size: 12px;
