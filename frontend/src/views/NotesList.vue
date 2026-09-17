@@ -326,13 +326,13 @@
                   <van-icon :name="detailNote.isPinned ? 'star' : 'star-o'" size="16" />
                 </button>
 
-                <!-- 全屏切换 -->
+                <!-- 跳转笔记编辑页（替代全屏专注） -->
                 <button
                   class="stage-action-btn"
-                  :title="isStageFullscreen ? '退出全屏 (Esc)' : '全屏专注'"
-                  @click="isStageFullscreen = !isStageFullscreen"
+                  title="跳转到笔记编辑页面"
+                  @click="goEdit(detailNote)"
                 >
-                  <van-icon :name="isStageFullscreen ? 'shrink' : 'expand-o'" size="16" />
+                  <van-icon name="edit" size="16" />
                 </button>
 
                 <!-- 收起主舞台（仅显示笔记列表） -->
