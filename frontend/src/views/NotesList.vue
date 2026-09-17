@@ -194,7 +194,7 @@
                     <button class="card-action-btn" :title="n.isPinned ? '取消置顶' : '置顶'" @click.stop="onTogglePin(n)">
                       <van-icon :name="n.isPinned ? 'star' : 'star-o'" size="13" />
                     </button>
-                    <button class="card-action-btn" title="编辑" @click.stop="selectNote(n.id, { edit: true })">
+                    <button class="card-action-btn" title="编辑" @click.stop="goEdit(n)">
                       <van-icon name="edit" size="13" />
                     </button>
                     <button class="card-action-btn btn-danger" title="删除" @click.stop="onDelete(n)">
@@ -1169,6 +1169,8 @@ async function loadNotes() {
     const params = { page: 1, pageSize }
     if (activeCategoryId.value != null) params.categoryId = activeCategoryId.value
     if (activeTagId.value != null) params.tagId = activeTagId.value
+    // 首页（未选分类与标签）：仅显示未分类笔记 + 所有置顶笔记
+    if (activeCategoryId.value == null && activeTagId.value == null) params.homeOnly = true
     const res = await http.get('/notes', { params })
     notes.value = res.items || []
     listFinished.value = (res.items || []).length < pageSize
@@ -1192,6 +1194,7 @@ async function onLoadMore() {
     const params = { page: nextPage, pageSize }
     if (activeCategoryId.value != null) params.categoryId = activeCategoryId.value
     if (activeTagId.value != null) params.tagId = activeTagId.value
+    if (activeCategoryId.value == null && activeTagId.value == null) params.homeOnly = true
     const res = await http.get('/notes', { params })
     const items = res.items || []
     notes.value.push(...items)
