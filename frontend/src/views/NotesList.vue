@@ -1262,9 +1262,27 @@ function handleStageKeydown(e) {
 watch(
   () => [route.query.categoryId, route.query.tagId],
   ([cat, tag]) => {
+    applyingFromRoute = true
     activeCategoryId.value = cat ? parseInt(cat, 10) : null
     activeTagId.value = tag ? parseInt(tag, 10) : null
+    applyingFromRoute = false
     loadNotes()
+  }
+)
+
+// 移动端抽屉：分类/标签选中变化 → 同步路由 + 关闭抽屉
+// （路由变化后上面的 watch 会自动触发 loadNotes，保持单一数据源）
+watch(
+  () => [activeCategoryId.value, activeTagId.value],
+  () => {
+    if (applyingFromRoute) return
+    const query = { ...route.query }
+    if (activeCategoryId.value != null) query.categoryId = activeCategoryId.value
+    else delete query.categoryId
+    if (activeTagId.value != null) query.tagId = activeTagId.value
+    else delete query.tagId
+    router.replace({ path: route.path, query })
+    showDrawer.value = false
   }
 )
 
