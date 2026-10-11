@@ -354,11 +354,15 @@ public class NotesController : ControllerBase
 
         var contentChanged = lastHash == null || lastHash != newHash;
 
+        // 仅当"内容实质变化"（标题/正文）时才刷新更新时间；
+        // 只修改分类/标签/背景色等元数据时保持 UpdatedAt 不变（比较需在原值被覆盖前进行）
+        var contentModified = dto.Title != note.Title || dto.Content != note.Content;
+
         note.Title = dto.Title;
         note.Content = dto.Content;
         note.CategoryId = dto.CategoryId;
         note.BackgroundColor = newBackgroundColor;
-        note.UpdatedAt = DateTime.UtcNow;
+        if (contentModified) note.UpdatedAt = DateTime.UtcNow;
 
         // 置顶字段：dto.IsPinned 为 null 表示保持不变
         if (dto.IsPinned.HasValue)
