@@ -122,7 +122,7 @@ public class AuthController : ControllerBase
         return Ok(new AuthResponseDto(accessToken, refreshToken, user.Email!, user.DisplayName));
     }
 
-    /// <summary>用 Refresh Token 换发新的 Access Token（滑动续期）。</summary>
+    /// <summary>用 Refresh Token 换发全新的 Token 对（Access + Refresh，滑动续期）。</summary>
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponseDto>> Refresh(RefreshDto dto)
     {
@@ -168,8 +168,10 @@ public class AuthController : ControllerBase
         if (await _userManager.IsLockedOutAsync(user))
             return Unauthorized(new { message = "账号已被禁用，请联系管理员" });
 
-        var newAccess = await _tokenService.RefreshAccessToken(user);
-        return Ok(new AuthResponseDto(newAccess, dto.RefreshToken, user.Email!, user.DisplayName));
+        // 滑动续期：同时换发新的 Access Token 与新的 Refresh Token，
+        // 只要 30 天内有活动，登录态即可一直延续；旧 Refresh Token 随其自身过期自然失效。
+        var (newAccess, newRefresh) = await _tokenService.CreateTokenPair(user);
+        return Ok(new AuthResponseDto(newAccess, newRefresh, user.Email!, user.DisplayName));
     }
 
     /// <summary>登出（JWT 无状态，前端负责清除本地 token；此端点作为对称语义占位）。</summary>

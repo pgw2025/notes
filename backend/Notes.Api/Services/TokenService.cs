@@ -12,36 +12,26 @@ public class TokenService
     private readonly IConfiguration _config;
     private readonly UserManager<ApplicationUser> _userManager;
 
+    /// <summary>Access Token 有效期（短，用于常规请求鉴权）。配置键 Jwt:AccessTokenMinutes，默认 15 分钟。</summary>
+    private readonly TimeSpan _accessTokenLifetime;
+
+    /// <summary>Refresh Token 有效期（长，仅用于换取新 Token 对）。配置键 Jwt:RefreshTokenDays，默认 30 天。</summary>
+    private readonly TimeSpan _refreshTokenLifetime;
+
     public TokenService(IConfiguration config, UserManager<ApplicationUser> userManager)
     {
         _config = config;
         _userManager = userManager;
+        _accessTokenLifetime = TimeSpan.FromMinutes(config.GetValue("Jwt:AccessTokenMinutes", 15));
+        _refreshTokenLifetime = TimeSpan.FromDays(config.GetValue("Jwt:RefreshTokenDays", 30));
     }
 
-    /// <summary>Access Token 有效期（短，用于常规请求鉴权）。</summary>
-    private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);
-
-    /// <summary>Refresh Token 有效期（长，仅用于换取新 Access Token）。</summary>
-    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
-
-    /// <summary>签发 Access Token（短有效期）。</summary>
-    public async Task<string> CreateToken(ApplicationUser user)
-    {
-        return await CreateTokenCore(user, AccessTokenLifetime, null);
-    }
-
-    /// <summary>签发一对 token：短效 Access Token + 长效 Refresh Token。</summary>
+    /// <summary>签发一对 token：短效 Access Token + 长效 Refresh Token。登录与续期共用。</summary>
     public async Task<(string AccessToken, string RefreshToken)> CreateTokenPair(ApplicationUser user)
     {
-        var access = await CreateTokenCore(user, AccessTokenLifetime, null);
-        var refresh = await CreateTokenCore(user, RefreshTokenLifetime, "refresh");
+        var access = await CreateTokenCore(user, _accessTokenLifetime, null);
+        var refresh = await CreateTokenCore(user, _refreshTokenLifetime, "refresh");
         return (access, refresh);
-    }
-
-    /// <summary>用 Refresh Token 换发新的 Access Token（滑动续期）。</summary>
-    public async Task<string> RefreshAccessToken(ApplicationUser user)
-    {
-        return await CreateTokenCore(user, AccessTokenLifetime, null);
     }
 
     private async Task<string> CreateTokenCore(ApplicationUser user, TimeSpan lifetime, string? tokenType)
