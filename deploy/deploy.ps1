@@ -103,7 +103,26 @@ ssh -p $SshPort ${SshUser}@${ServerIP} "chmod +x ${RemoteTmp}/02-deploy-app.sh &
 
 Write-Host ""
 Write-Host "==> 上传全部完成！请 SSH 登录服务器执行：" -ForegroundColor Green
-Write-Host "    bash /opt/notes/_deploy_tmp/02-deploy-app.sh"
-Write-Host "    （它会：生成 appsettings.Production.json / 停服务 / 赋权 / 迁移 / 启动 systemd / 重载 Nginx）"
+# Write-Host "    bash /opt/notes/_deploy_tmp/02-deploy-app.sh"
+# Write-Host "    （它会：生成 appsettings.Production.json / 停服务 / 赋权 / 迁移 / 启动 systemd / 重载 Nginx）"
+# Write-Host ""
+# Write-Host "如果是第一台全新服务器，先执行过 deploy/01-init-server.sh"
+
 Write-Host ""
-Write-Host "如果是第一台全新服务器，先执行过 deploy/01-init-server.sh"
+Write-Host "是否立即在服务器上执行 02-deploy-app.sh 完成部署？" -ForegroundColor Cyan
+Write-Host "   [Y] 是（默认，回车或输入 Y）"
+Write-Host "   [N] 否，稍后手动执行：bash ${RemoteTmp}/02-deploy-app.sh"
+$answer = Read-Host "请输入 (Y/N)"
+if ([string]::IsNullOrWhiteSpace($answer) -or $answer -match '^[Yy]$') {
+  Write-Host "==> 5/5 在服务器执行 ${RemoteTmp}/02-deploy-app.sh（含交互输入，请留意提示）" -ForegroundColor Cyan
+  # -t 分配 TTY，脚本里的 read -s（隐藏密码输入）才能正常工作
+  ssh -t -p $SshPort "${SshUser}@${ServerIP}" "bash ${RemoteTmp}/02-deploy-app.sh"
+  if ($LASTEXITCODE -ne 0) { throw "02-deploy-app.sh 执行失败（退出码 ${LASTEXITCODE}）" }
+  Write-Host ""
+  Write-Host "==> 部署完成！" -ForegroundColor Green
+  Write-Host "    浏览器访问：https://${ServerIP}:2129/"
+} else {
+  Write-Host "   已跳过，稍后可手动执行：bash ${RemoteTmp}/02-deploy-app.sh" -ForegroundColor Yellow
+}
+Write-Host ""
+Write-Host "全新服务器请先执行过 deploy/01-init-server.sh"
