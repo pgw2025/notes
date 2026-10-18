@@ -1,6 +1,7 @@
 [Unit]
 Description=Notes ASP.NET Core Web API
 After=network.target mysql.service
+Requires=mysql.service
 
 [Service]
 # 用 simple 而非 notify：notify 要求应用通过 sd_notify 发送 READY=1，

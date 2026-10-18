@@ -191,7 +191,14 @@ public class AuthController : ControllerBase
         {
             colors = new List<string>(DefaultPalette);
             user.CustomColors = JsonSerializer.Serialize(colors);
-            await _userManager.UpdateAsync(user);
+            try
+            {
+                await _userManager.UpdateAsync(user);
+            }
+            catch
+            {
+                // 连接池抖动等瞬态故障不应阻塞 /auth/me；色板补全可等下次成功
+            }
         }
 
         return Ok(new UserDto(
