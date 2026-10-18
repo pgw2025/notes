@@ -65,10 +65,17 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            // 资源型 API（笔记/分类/标签/统计，不含附件与头像）：
+            // notes / categories / tags：结构化数据缓存已由 Dexie（IndexedDB）数据层接管，
+            // SW 这里仅做透传（NetworkOnly），不再重复 HTTP 层缓存，避免两层缓存不一致。
+            urlPattern: /\/api\/(notes(?!\/\d)|categories|tags)(\?|$)/,
+            method: 'GET',
+            handler: 'NetworkOnly'
+          },
+          {
+            // 资源型 API（笔记详情/统计，不含附件与头像）：
             // NetworkFirst，超时 3s 回退缓存，离线时也能浏览最近加载的数据。
             // 已用负向前瞻排除 /api/auth(不含 me 与头像) 与 /api/attachments。
-            urlPattern: /\/api\/(?!(auth\/(?!me|avatar)|attachments)\/)/,
+            urlPattern: /\/api\/(?!(auth\/(?!me|avatar)|attachments|notes(?!\/\d)|categories|tags)\/)/,
             method: 'GET',
             handler: 'NetworkFirst',
             options: {

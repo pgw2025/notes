@@ -601,11 +601,14 @@ import { ref, onActivated, onMounted, onBeforeUnmount, computed, watch, nextTick
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import http from '../api/http'
+import { getAllNotes, putNotes } from '../utils/db'
 import { formatTime } from '../utils/format'
 import { resolveNoteColor, getContrastColor, isDarkColor } from '../utils/color'
 import { findCategoryById } from '../utils/categoryTree'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
+import { useCategoryStore } from '../stores/category'
+import { useTagStore } from '../stores/tag'
 import { useResponsive } from '../composables/useResponsive'
 import CategoryNav from '../components/CategoryNav.vue'
 import MarkdownBody from '../components/MarkdownBody.vue'
@@ -618,13 +621,13 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const theme = useThemeStore()
+const categoryStore = useCategoryStore()
+const tagStore = useTagStore()
 const { isDesktop } = useResponsive()
 
 const isDarkEffective = computed(() => theme.isDarkEffective)
 
 const notes = ref([])
-const categories = ref([])
-const tags = ref([])
 const activeCategoryId = ref(null)
 const activeTagId = ref(null)
 
@@ -691,11 +694,11 @@ const filteredNotes = computed(() => {
 
 const currentCategoryName = computed(() => {
   if (activeTagId.value != null) {
-    const foundTag = tags.value.find((t) => t.id === activeTagId.value)
+    const foundTag = tagStore.tags.find((t) => t.id === activeTagId.value)
     return foundTag ? `#${foundTag.name}` : '标签笔记'
   }
   if (activeCategoryId.value == null) return '全部笔记'
-  return findCategoryById(categories.value, activeCategoryId.value)?.name ?? '笔记'
+  return findCategoryById(categoryStore.categories, activeCategoryId.value)?.name ?? '笔记'
 })
 
 const emptyTitle = computed(() => {
@@ -796,7 +799,7 @@ async function saveFullEdit(createVersion = false) {
   saving.value = true
   try {
     const tagIds = (d.tags || [])
-      .map((name) => tags.value.find((t) => t.name === name)?.id)
+      .map((name) => tagStore.tags.find((t) => t.name === name)?.id)
       .filter(Boolean)
 
     await http.put(`/notes/${d.id}`, {
@@ -1146,41 +1149,55 @@ function makePreview(content) {
 }
 
 // ==================== 数据拉取 ====================
-async function loadCategories() {
-  try {
-    categories.value = await http.get('/categories')
-  } catch {
-    categories.value = []
-  }
-}
-
-async function loadTags() {
-  try {
-    tags.value = await http.get('/tags')
-  } catch {
-    tags.value = []
-  }
-}
 
 async function loadNotes() {
-  loading.value = true
   currentPage.value = 1
+  const isHome = activeCategoryId.value == null && activeTagId.value == null
+  let hasLocal = false
+
+  // Phase 1: 本地优先（仅 homeOnly 场景有本地缓存）
+  if (isHome) {
+    try {
+      const local = await getAllNotes()
+      if (local.length > 0) {
+        notes.value = local
+        // 不设 listFinished，等 Phase 2 网络结果来决定是否还有更多
+        hasLocal = true
+
+        // 桌面端默认选中第一篇（本地缓存也值得先选中）
+        if (isDesktop.value && !selectedNoteId.value && local.length > 0) {
+          selectNote(local[0].id, { keepCollapsed: true })
+        }
+      }
+    } catch { /* IndexedDB 读取失败忽略 */ }
+  }
+
+  // Phase 2: 网络同步（无论 Phase 1 有没有本地都要跑）
+  loading.value = !hasLocal
   try {
     const params = { page: 1, pageSize }
     if (activeCategoryId.value != null) params.categoryId = activeCategoryId.value
     if (activeTagId.value != null) params.tagId = activeTagId.value
-    // 首页（未选分类与标签）：仅显示未分类笔记 + 所有置顶笔记
-    if (activeCategoryId.value == null && activeTagId.value == null) params.homeOnly = true
+    if (isHome) params.homeOnly = true
     const res = await http.get('/notes', { params })
-    notes.value = res.items || []
-    listFinished.value = (res.items || []).length < pageSize
+    const items = res.items || []
+    notes.value = items
+    listFinished.value = items.length < pageSize
 
-    // 桌面端：若当前无选中笔记，默认选中第一篇（keepCollapsed：不因此展开主舞台）
-    if (isDesktop.value && !selectedNoteId.value && notes.value.length > 0) {
-      selectNote(notes.value[0].id, { keepCollapsed: true })
+    // homeOnly 场景：写回 IndexedDB（其他筛选场景不存）
+    if (isHome) {
+      try { await putNotes(items) } catch { /* ignore */ }
+    }
+
+    // 桌面端默认选中第一篇
+    if (isDesktop.value && !selectedNoteId.value && items.length > 0) {
+      selectNote(items[0].id, { keepCollapsed: true })
     }
   } catch {
-    notes.value = []
+    // 网络失败 → 保留 Phase 1 的本地数据
+    if (!hasLocal) {
+      notes.value = []
+    }
   } finally {
     loading.value = false
   }
@@ -1206,7 +1223,7 @@ async function onLoadMore() {
 }
 
 function onRefresh() {
-  Promise.all([loadCategories(), loadTags(), loadNotes()]).finally(() => {
+  Promise.all([categoryStore.fetchCategories(), tagStore.fetchTags(), loadNotes()]).finally(() => {
     refreshing.value = false
   })
 }
@@ -1234,8 +1251,9 @@ function timeColor(note) {
 }
 
 onMounted(() => {
-  loadCategories()
-  loadTags()
+  // store 的 Phase 1 本地读取 <10ms，子组件先 mounted 时 App.vue 还没调
+  categoryStore.fetchCategories()
+  tagStore.fetchTags()
   loadNotes()
   window.addEventListener('keydown', handleStageKeydown)
 })
