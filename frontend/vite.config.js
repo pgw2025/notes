@@ -9,9 +9,11 @@ export default defineConfig({
     // 接入 PWA：生成 Service Worker + manifest
     // 注意：registerType 为 prompt 时，需要在入口手动监听 needRefresh 并提示用户更新（见 src/main.js）
     VitePWA({
-      registerType: 'prompt',
-      // 不自动在 index.html 注入注册脚本，改为在 src/main.js 用 virtual 模块手动注册，
-      // 以便捕捉 needRefresh/offlineReady 事件做更新提示。
+      // autoUpdate：SW 检测到新版本后跳过手动 prompt，直接 skipWaiting 激活。
+      // 之前用 prompt 导致"修复 bug 后用户仍被旧 precache 文件卡住"——
+      // 旧 SW 不激活 → cleanupOutdatedCaches 也不触发 → 有 bug 的旧 bundle 永远被返回。
+      registerType: 'autoUpdate',
+      // 不自动在 index.html 注入注册脚本，改为在 src/main.js 用 virtual 模块手动注册
       injectRegister: false,
       includeAssets: [
         'favicon.svg',
