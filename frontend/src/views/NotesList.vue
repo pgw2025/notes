@@ -1149,6 +1149,15 @@ function makePreview(content) {
 }
 
 // ==================== 数据拉取 ====================
+// Phase 1/2 拆成独立 helper，避免 Rolldown minification 变量名冲突
+
+async function _phase1ReadNotes() {
+  try {
+    const cached = await getAllNotes()
+    if (cached.length > 0) return cached
+  } catch { /* ignore */ }
+  return null
+}
 
 async function loadNotes() {
   currentPage.value = 1
@@ -1157,19 +1166,16 @@ async function loadNotes() {
 
   // Phase 1: 本地优先（仅 homeOnly 场景有本地缓存）
   if (isHome) {
-    try {
-      const local = await getAllNotes()
-      if (local.length > 0) {
-        notes.value = local
-        // 不设 listFinished，等 Phase 2 网络结果来决定是否还有更多
-        hasLocal = true
+    const cachedNotes = await _phase1ReadNotes()
+    if (cachedNotes) {
+      notes.value = cachedNotes
+      hasLocal = true
 
-        // 桌面端默认选中第一篇（本地缓存也值得先选中）
-        if (isDesktop.value && !selectedNoteId.value && local.length > 0) {
-          selectNote(local[0].id, { keepCollapsed: true })
-        }
+      // 桌面端默认选中第一篇（本地缓存也值得先选中）
+      if (isDesktop.value && !selectedNoteId.value && cachedNotes.length > 0) {
+        selectNote(cachedNotes[0].id, { keepCollapsed: true })
       }
-    } catch { /* IndexedDB 读取失败忽略 */ }
+    }
   }
 
   // Phase 2: 网络同步（无论 Phase 1 有没有本地都要跑）
@@ -1180,18 +1186,18 @@ async function loadNotes() {
     if (activeTagId.value != null) params.tagId = activeTagId.value
     if (isHome) params.homeOnly = true
     const res = await http.get('/notes', { params })
-    const items = res.items || []
-    notes.value = items
-    listFinished.value = items.length < pageSize
+    const freshItems = res.items || []
+    notes.value = freshItems
+    listFinished.value = freshItems.length < pageSize
 
     // homeOnly 场景：写回 IndexedDB（其他筛选场景不存）
     if (isHome) {
-      try { await putNotes(items) } catch { /* ignore */ }
+      try { await putNotes(freshItems) } catch { /* ignore */ }
     }
 
     // 桌面端默认选中第一篇
-    if (isDesktop.value && !selectedNoteId.value && items.length > 0) {
-      selectNote(items[0].id, { keepCollapsed: true })
+    if (isDesktop.value && !selectedNoteId.value && freshItems.length > 0) {
+      selectNote(freshItems[0].id, { keepCollapsed: true })
     }
   } catch {
     // 网络失败 → 保留 Phase 1 的本地数据
