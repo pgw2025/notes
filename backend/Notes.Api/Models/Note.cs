@@ -32,6 +32,15 @@ public class Note
     /// <summary>笔记背景色（HEX 格式如 "#FFF9C4"）。null 表示用用户默认色或系统白色。</summary>
     public string? BackgroundColor { get; set; }
 
+    /// <summary>是否已进回收站（软删除）。true 时笔记不在普通列表/搜索/时间线中显示。</summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>进入回收站的时间（用于回收站排序与到期自动清理）。</summary>
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>删除前所属分类 Id（恢复时若分类仍存在则还原，否则归入未分类）。</summary>
+    public int? DeletedFromCategoryId { get; set; }
+
     public ICollection<NoteTag> NoteTags { get; set; } = new List<NoteTag>();
 
     public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();

@@ -37,6 +37,7 @@ const routes = [
   { path: '/search', name: 'search', component: () => import('../views/Search.vue') },
   { path: '/categories', name: 'categories', component: () => import('../views/Categories.vue') },
   { path: '/tags', name: 'tags', component: () => import('../views/Tags.vue') },
+  { path: '/trash', name: 'trash', component: () => import('../views/Trash.vue'), meta: { tabbar: false } },
   { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue') }
 ]
 

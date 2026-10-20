@@ -26,7 +26,8 @@ public record NoteListItemDto(
     List<string> Tags,
     string? BackgroundColor,
     bool IsPinned,
-    DateTime? PinnedAt);
+    DateTime? PinnedAt,
+    DateTime? DeletedAt = null);
 
 public record NoteListResponseDto(
     List<NoteListItemDto> Items,

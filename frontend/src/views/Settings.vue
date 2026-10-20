@@ -141,6 +141,19 @@
               <van-icon name="arrow" class="cell-arrow" />
             </div>
 
+            <div class="action-cell" @click="$router.push('/trash')">
+              <div class="cell-left">
+                <div class="cell-icon-wrap icon-slate">
+                  <van-icon name="delete-o" size="18" />
+                </div>
+                <div class="cell-text">
+                  <span class="cell-title">回收站</span>
+                  <span class="cell-sub">查看与恢复已删除的笔记</span>
+                </div>
+              </div>
+              <van-icon name="arrow" class="cell-arrow" />
+            </div>
+
             <div class="action-cell" @click="showColorPicker = true">
               <div class="cell-left">
                 <div class="cell-icon-wrap icon-amber">
@@ -320,6 +333,19 @@
               <div class="cell-text">
                 <span class="cell-title">标签管理</span>
                 <span class="cell-sub">管理所有标签索引</span>
+              </div>
+            </div>
+            <van-icon name="arrow" class="cell-arrow" />
+          </div>
+
+          <div class="action-cell" @click="$router.push('/trash')">
+            <div class="cell-left">
+              <div class="cell-icon-wrap icon-slate">
+                <van-icon name="delete-o" size="18" />
+              </div>
+              <div class="cell-text">
+                <span class="cell-title">回收站</span>
+                <span class="cell-sub">查看与恢复已删除的笔记</span>
               </div>
             </div>
             <van-icon name="arrow" class="cell-arrow" />
@@ -886,6 +912,7 @@ onMounted(async () => {
 .icon-amber { background: rgba(245, 158, 11, 0.12); color: #d97706; }
 .icon-emerald { background: rgba(16, 185, 129, 0.12); color: #059669; }
 .icon-purple { background: rgba(168, 85, 247, 0.12); color: #9333ea; }
+.icon-slate { background: rgba(100, 116, 139, 0.12); color: #64748b; }
 
 .cell-text {
   display: flex;

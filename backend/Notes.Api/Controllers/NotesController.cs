@@ -46,7 +46,7 @@ public class NotesController : ControllerBase
         var query = _db.Notes
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
-            .Where(n => n.UserId == UserId);
+            .Where(n => n.UserId == UserId && !n.IsDeleted);
 
         if (homeOnly == true)
             // 首页 = 未分类笔记 + 所有置顶笔记（跨分类冗余显示）
@@ -89,7 +89,7 @@ public class NotesController : ControllerBase
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Include(n => n.Attachments)
             .AsSplitQuery()
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId && !n.IsDeleted);
 
         if (note == null) return NotFound();
 
@@ -111,7 +111,7 @@ public class NotesController : ControllerBase
         var query = _db.Notes
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
-            .Where(n => n.UserId == UserId &&
+            .Where(n => n.UserId == UserId && !n.IsDeleted &&
                 (EF.Functions.Collate(n.Title, "utf8mb4_general_ci").Contains(term) ||
                  EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term) ||
                  n.NoteTags.Any(nt =>
@@ -148,7 +148,7 @@ public class NotesController : ControllerBase
         var query = _db.Notes
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
-            .Where(n => n.UserId == UserId &&
+            .Where(n => n.UserId == UserId && !n.IsDeleted &&
                 (EF.Functions.Collate(n.Title, "utf8mb4_general_ci").Contains(term) ||
                  EF.Functions.Collate(n.Content, "utf8mb4_general_ci").Contains(term) ||
                  n.NoteTags.Any(nt =>
@@ -175,7 +175,7 @@ public class NotesController : ControllerBase
         var query = _db.Notes
             .Include(n => n.Category)
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
-            .Where(n => n.UserId == UserId);
+            .Where(n => n.UserId == UserId && !n.IsDeleted);
 
         // 按分类过滤（多分类 "或"）
         if (q.CategoryIds != null && q.CategoryIds.Count > 0)
@@ -406,11 +406,105 @@ public class NotesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId && !n.IsDeleted);
         if (note == null) return NotFound();
 
+        // 软删除：移入回收站（保留版本/附件/标签，恢复时无损还原）
+        note.IsDeleted = true;
+        note.DeletedAt = DateTime.UtcNow;
+        note.DeletedFromCategoryId = note.CategoryId;
+        note.CategoryId = null;
+        note.IsPinned = false;
+        note.PinnedAt = null;
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ===================== 回收站 =====================
+
+    /// <summary>回收站列表：返回当前用户已软删除的笔记（按删除时间倒序，分页）</summary>
+    [HttpGet("trash")]
+    public async Task<ActionResult<NoteListResponseDto>> Trash([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+        var userDefaultColor = await GetUserDefaultColorAsync();
+
+        var query = _db.Notes
+            .Include(n => n.Category)
+            .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
+            .Where(n => n.UserId == UserId && n.IsDeleted);
+
+        var totalCount = await query.CountAsync();
+
+        var notes = await query
+            .OrderByDescending(n => n.DeletedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = notes.Select(n =>
+        {
+            var item = MapToListItem(n, userDefaultColor);
+            return item with { DeletedAt = n.DeletedAt };
+        }).ToList();
+
+        var hasMore = (page - 1) * pageSize + items.Count < totalCount;
+        return Ok(new NoteListResponseDto(items, totalCount, page, pageSize, hasMore));
+    }
+
+    /// <summary>从回收站恢复：清空删除标记，还原原分类（若分类已删则归入未分类）</summary>
+    [HttpPost("{id:int}/restore")]
+    public async Task<IActionResult> Restore(int id)
+    {
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId && n.IsDeleted);
+        if (note == null) return NotFound();
+
+        note.IsDeleted = false;
+        note.DeletedAt = null;
+
+        // 还原分类：若原分类已不存在，则归入未分类
+        if (note.DeletedFromCategoryId.HasValue)
+        {
+            var catExists = await _db.Categories
+                .AnyAsync(c => c.Id == note.DeletedFromCategoryId.Value && c.UserId == UserId);
+            note.CategoryId = catExists ? note.DeletedFromCategoryId : null;
+        }
+        else
+        {
+            note.CategoryId = null;
+        }
+        note.DeletedFromCategoryId = null;
+
+        await _db.SaveChangesAsync();
+        return Ok(new { NoteId = id });
+    }
+
+    /// <summary>彻底删除：物理删除笔记及其版本、附件文件（不可恢复）</summary>
+    [HttpDelete("{id:int}/permanent")]
+    public async Task<IActionResult> DeletePermanently(int id)
+    {
+        var note = await _db.Notes
+            .Include(n => n.Attachments)
+            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+        if (note == null) return NotFound();
+
+        // 清理附件物理文件
+        foreach (var att in note.Attachments)
+        {
+            try { System.IO.File.Delete(att.FilePath); } catch { /* 忽略单个文件删除失败 */ }
+        }
+
+        // 显式删除版本历史（NoteVersion 无 Cascade 配置，需先删避免 FK 冲突）
+        var versions = _db.NoteVersions.Where(v => v.NoteId == id);
+        _db.NoteVersions.RemoveRange(versions);
+
+        // 删除笔记（NoteTag、Attachment 由数据库级联删除）
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
+
         return NoContent();
     }
 
@@ -421,7 +515,7 @@ public class NotesController : ControllerBase
     {
         var note = await _db.Notes
             .Include(n => n.NoteTags).ThenInclude(nt => nt.Tag)
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId && !n.IsDeleted);
         if (note == null) return NotFound();
 
         var currentHash = ComputeSnapshotHash(
@@ -464,7 +558,7 @@ public class NotesController : ControllerBase
     [HttpGet("{id:int}/versions/{vid:int}")]
     public async Task<ActionResult<NoteVersionDetailDto>> GetVersionDetail(int id, int vid)
     {
-        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId);
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == UserId && !n.IsDeleted);
         if (note == null) return NotFound();
 
         var version = await _db.NoteVersions

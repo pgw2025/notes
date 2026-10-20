@@ -747,10 +747,10 @@ async function onDeleteNote(note) {
   try {
     await showConfirmDialog({
       title: '删除笔记',
-      message: `确定删除笔记「${note.title || '无标题'}」吗？`
+      message: `确定将笔记「${note.title || '无标题'}」移入回收站吗？`
     })
     await http.delete(`/notes/${note.id}`)
-    showToast('已删除')
+    showToast('已移入回收站')
     await loadCategoryNotes()
     await load() // 刷新分类笔记计数
   } catch (err) {

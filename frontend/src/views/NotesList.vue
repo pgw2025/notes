@@ -588,8 +588,8 @@
         <CategoryNav
           v-model="activeCategoryId"
           v-model:tagModelValue="activeTagId"
-          :categories="categories"
-          :tags="tags"
+          :categories="categoryStore.categories"
+          :tags="tagStore.tags"
         />
       </div>
     </van-popup>
@@ -1112,7 +1112,7 @@ async function onTogglePin(note) {
 
 async function onDelete(note) {
   try {
-    await showConfirmDialog({ title: '删除笔记', message: `确定删除「${note.title || '无标题'}」吗？` })
+    await showConfirmDialog({ title: '删除笔记', message: `确定将「${note.title || '无标题'}」移入回收站吗？` })
     await http.delete(`/notes/${note.id}`)
     notes.value = notes.value.filter((n) => n.id !== note.id)
     if (selectedNoteId.value === note.id) {
@@ -1120,7 +1120,7 @@ async function onDelete(note) {
       detailNote.value = null
       editMode.value = false
     }
-    showToast('已删除')
+    showToast('已移入回收站')
   } catch {
     // 取消
   }
