@@ -9,10 +9,11 @@ export default defineConfig({
     // 接入 PWA：生成 Service Worker + manifest
     // 注意：registerType 为 prompt 时，需要在入口手动监听 needRefresh 并提示用户更新（见 src/main.js）
     VitePWA({
-      // autoUpdate：SW 检测到新版本后跳过手动 prompt，直接 skipWaiting 激活。
-      // 之前用 prompt 导致"修复 bug 后用户仍被旧 precache 文件卡住"——
-      // 旧 SW 不激活 → cleanupOutdatedCaches 也不触发 → 有 bug 的旧 bundle 永远被返回。
-      registerType: 'autoUpdate',
+      // prompt：新版 SW 安装完成后不自动激活，而是挂起等待用户确认。
+      // 由 src/main.js 的 onNeedRefresh 弹出更新确认对话框，用户点「立即更新」才 skipWaiting + reload。
+      // 注意：之前改回 autoUpdate 是为了解决「旧 SW 卡住不激活导致 bug 无法修复」，
+      // 现在配合入口处的强制确认弹窗可覆盖同样场景：用户会主动确认，不会永久停留在旧 bundle。
+      registerType: 'prompt',
       // 不自动在 index.html 注入注册脚本，改为在 src/main.js 用 virtual 模块手动注册
       injectRegister: false,
       includeAssets: [

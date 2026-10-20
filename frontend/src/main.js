@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import Vant from 'vant'
-import { showToast } from 'vant'
+import { showToast, showConfirmDialog } from 'vant'
 import 'vant/lib/index.css'
 import { registerSW } from 'virtual:pwa-register'
 
@@ -75,13 +75,30 @@ router.isReady().then(() => {
 })
 
 // ---- PWA：注册 Service Worker ----
-// vite.config.js 已改为 registerType: 'autoUpdate'，
-// 新版 SW 安装后自动 skipWaiting 激活，无需手动 prompt 对话框。
-// 如果未来需要强制刷新重要补丁，可改回 prompt + onNeedRefresh 自定义对话框。
+// vite.config.js 为 registerType: 'prompt'：
+// 新版 SW 安装完成后不会自动激活，而是触发 onNeedRefresh；
+// 这里弹确认对话框，用户点「立即更新」才 skipWaiting 激活并刷新页面，
+// 点「稍后」则下次打开页面时旧 SW 仍在运行、新版继续挂起等待。
 if ('serviceWorker' in navigator) {
   try {
-    registerSW({
+    const updateSW = registerSW({
       immediate: true,
+      onNeedRefresh() {
+        showConfirmDialog({
+          title: '发现新版本',
+          message: '新版本已就绪，是否立即更新？更新后页面将自动刷新。',
+          confirmButtonText: '立即更新',
+          cancelButtonText: '稍后'
+        })
+          .then(() => {
+            // 传 true：等新 SW 激活接管后自动 reload，加载到的就是新 bundle
+            updateSW(true)
+          })
+          .catch(() => {
+            // 用户选择「稍后」：本次会话继续用旧版本，不强制打断
+            showToast({ message: '已跳过本次更新，下次打开时可再次选择', position: 'bottom' })
+          })
+      },
       onOfflineReady() {
         // 首次资源预缓存完成，可离线访问
         showToast({ message: '已支持离线访问', position: 'bottom' })
