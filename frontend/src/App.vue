@@ -43,6 +43,18 @@
           <span v-show="!isSidebarCollapsed" class="item-label">{{ item.label }}</span>
         </router-link>
 
+        <!-- 回收站（仅桌面侧栏常驻） -->
+        <router-link
+          to="/trash"
+          class="sidebar-item"
+          :title="isSidebarCollapsed ? '回收站' : undefined"
+        >
+          <div class="item-icon-box">
+            <van-icon name="delete-o" size="18" />
+          </div>
+          <span v-show="!isSidebarCollapsed" class="item-label">回收站</span>
+        </router-link>
+
         <!-- 管理员后台直通车 -->
         <a
           v-if="isAdmin"

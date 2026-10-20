@@ -7,8 +7,8 @@
       </template>
       <template #right>
         <div class="nav-right-actions">
+          <van-icon name="delete-o" size="20" class="nav-trash-btn" @click="$router.push('/trash')" title="回收站" />
           <van-icon name="search" size="20" class="nav-search-btn" @click="$router.push('/search')" title="搜索" />
-          <van-icon name="plus" size="22" class="nav-plus-btn" @click="$router.push('/notes/new')" title="新建笔记" />
         </div>
       </template>
     </van-nav-bar>
@@ -1326,6 +1326,13 @@ watch(isStageFullscreen, (v) => {
 .page {
   min-height: 100vh;
   background: var(--app-bg);
+}
+
+/* 移动端顶部导航栏右侧操作区：图标间距 */
+.nav-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 
 .layout {
