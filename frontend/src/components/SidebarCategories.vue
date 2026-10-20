@@ -11,20 +11,18 @@
       </router-link>
     </div>
 
-    <!-- 分类树（导航式：点击跳转 /notes?categoryId=x） -->
+    <!-- 分类树（递归渲染，父分类可展开/折叠，点击跳转筛选） -->
     <div v-if="categories.length > 0" class="cats-scroll-container">
-      <router-link
+      <SidebarCategoryNode
         v-for="c in categories"
         :key="c.id"
-        :to="{ path: '/notes', query: { categoryId: c.id } }"
-        class="sidebar-cat-item"
-        :class="{ active: isCatActive(c.id) }"
-        :title="`${c.name} (${c.noteCount || 0} 篇笔记)`"
-      >
-        <span class="cat-folder-icon">📁</span>
-        <span class="cat-name">{{ c.name }}</span>
-        <span class="cat-count">{{ c.noteCount || 0 }}</span>
-      </router-link>
+        :node="c"
+        :depth="0"
+        :expanded="expanded"
+        :active-id="activeId"
+        @toggle="toggle"
+        @select="select"
+      />
     </div>
 
     <!-- 空状态 -->
@@ -36,8 +34,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { flattenCategories } from '../utils/categoryTree'
+import SidebarCategoryNode from './SidebarCategoryNode.vue'
 
 const props = defineProps({
   categories: {
@@ -47,11 +47,57 @@ const props = defineProps({
 })
 
 const route = useRoute()
+const router = useRouter()
 
-function isCatActive(catId) {
-  if (route.path !== '/notes') return false
-  return Number(route.query.categoryId) === catId
+// 展开的分类 id 集合（父分类含子分类时才展开）
+const expanded = ref(new Set())
+
+// 当前激活分类 id（用于高亮，含父/子分类）
+const activeId = computed(() => {
+  if (route.path !== '/notes') return null
+  const id = Number(route.query.categoryId)
+  return Number.isFinite(id) && id > 0 ? id : null
+})
+
+function toggle(id) {
+  const next = new Set(expanded.value)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  expanded.value = next
 }
+
+function select(node) {
+  router.push({ path: '/notes', query: { categoryId: node.id } })
+}
+
+// 切换分类源时，把当前激活分类及其祖先路径自动展开，方便定位
+watch(
+  () => props.categories,
+  (list) => {
+    if (!activeId.value) return
+    const flat = flattenCategories(list)
+    const target = flat.find((n) => n.id === activeId.value)
+    if (!target || target.parentId == null) return
+    const ancestors = []
+    let cur = target
+    const byId = new Map(flat.map((n) => [n.id, n]))
+    while (cur && cur.parentId != null) {
+      const parent = byId.get(cur.parentId)
+      if (!parent) break
+      ancestors.push(parent.id)
+      cur = parent
+    }
+    if (ancestors.length > 0) {
+      const next = new Set(expanded.value)
+      ancestors.forEach((id) => next.add(id))
+      expanded.value = next
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
@@ -111,63 +157,6 @@ function isCatActive(catId) {
   display: flex;
   flex-direction: column;
   gap: 3px;
-}
-
-.sidebar-cat-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.sidebar-cat-item:hover {
-  background: var(--surface-2);
-  color: var(--text-primary);
-}
-
-.sidebar-cat-item.active {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
-:global(body.dark) .sidebar-cat-item.active {
-  background: rgba(56, 189, 248, 0.16);
-  color: var(--color-primary);
-}
-
-.cat-folder-icon {
-  font-size: 13px;
-  opacity: 0.8;
-}
-
-.cat-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cat-count {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  background: var(--surface-3);
-  border-radius: 999px;
-  padding: 0 6px;
-  line-height: 16px;
-}
-
-.sidebar-cat-item.active .cat-count {
-  background: rgba(59, 130, 246, 0.2);
-  color: var(--color-primary);
-  font-weight: 600;
 }
 
 .cats-empty {
