@@ -54,13 +54,12 @@ const emit = defineEmits(['toggle', 'select'])
 const hasChildren = computed(() => props.node.children && props.node.children.length > 0)
 const isExpanded = computed(() => props.expanded.has(props.node.id))
 
-// 点击行：有子分类则切换展开态；无子分类则跳转筛选
+// 点击行：有子分类则同时切换展开态并筛选（含子孙分类笔记）；无子分类则仅跳转筛选
 function onRowClick() {
   if (hasChildren.value) {
     emit('toggle', props.node.id)
-  } else {
-    emit('select', props.node)
   }
+  emit('select', props.node)
 }
 </script>
 
