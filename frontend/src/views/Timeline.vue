@@ -1113,6 +1113,7 @@ watch(() => filters.keyword, () => {
   transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-xs);
   cursor: pointer;
+  min-width: 0;
 }
 .note-card:hover {
   box-shadow: var(--shadow-sm);
@@ -1133,6 +1134,7 @@ watch(() => filters.keyword, () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .note-preview {
   font-size: 13px;
@@ -1185,6 +1187,9 @@ watch(() => filters.keyword, () => {
     gap: 20px;
     padding: 16px 16px 32px;
     align-items: flex-start;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
   }
   .timeline {
     flex: 1;
